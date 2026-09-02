@@ -1,1 +1,1 @@
-# Python_Workspace
+# Patent Intelligence System Project
