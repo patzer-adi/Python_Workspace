@@ -1,0 +1,9 @@
+.DS_Store
+
+data/hupd_sample/sample/
+data/hupd_sample/sample-jan-2016.tar.gz
+
+.venv/
+__pycache__/
+*.pyc
+
