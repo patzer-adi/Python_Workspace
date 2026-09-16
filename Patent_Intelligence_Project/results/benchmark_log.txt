@@ -1,0 +1,236 @@
+======================================================================
+PATENT EMBEDDING MODEL BENCHMARK
+======================================================================
+Preferred device: mps
+PyTorch: 2.14.0
+Input file: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/data/hupd_sample/patent_sample_15_stratified.csv
+======================================================================
+Number of patents: 15
+CPC subclasses present: ['G06F', 'H01L', 'H04L']
+Chance-level same-CPC hit@3 baseline for this sample: 0.6703 (a model with no real signal would score roughly this by luck alone)
+
+======================================================================
+MODEL 1/7: PatentSBERTa
+======================================================================
+Model ID: AI-Growth-Lab/PatentSBERTa
+  Trying device: mps
+Model loaded in 87.61s on device=mps (fallback=False)
+Encoding completed in 2.50s
+Embedding shape: (15, 768)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/patentsberta.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/patentsberta_retrieval.csv
+
+[OK] PatentSBERTa COMPLETE
+  Dimension: 768
+  Encoding time: 2.50s
+  same_cpc_hit_rate_at_3: 0.8667 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+MODEL 2/7: PaECTER
+======================================================================
+Model ID: mpi-inno-comp/paecter
+  Trying device: mps
+Model loaded in 257.53s on device=mps (fallback=False)
+Encoding completed in 1.66s
+Embedding shape: (15, 1024)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/paecter.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/paecter_retrieval.csv
+
+[OK] PaECTER COMPLETE
+  Dimension: 1024
+  Encoding time: 1.66s
+  same_cpc_hit_rate_at_3: 1.0000 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+MODEL 3/7: Nomic-Embed-v1.5
+======================================================================
+Model ID: nomic-ai/nomic-embed-text-v1.5
+  Trying device: mps
+  [WARN] Device 'mps' failed for Nomic-Embed-v1.5: This modeling file requires the following packages that were not found in your environment: einops. Run `pip install einops`
+  Retrying Nomic-Embed-v1.5 on next fallback device...
+  Trying device: cpu
+  [WARN] Device 'cpu' failed for Nomic-Embed-v1.5: This modeling file requires the following packages that were not found in your environment: einops. Run `pip install einops`
+
+[FAILED] Nomic-Embed-v1.5
+Error: This modeling file requires the following packages that were not found in your environment: einops. Run `pip install einops`
+Continuing to the next model...
+Model memory released.
+
+======================================================================
+MODEL 4/7: BGE-base-en-v1.5
+======================================================================
+Model ID: BAAI/bge-base-en-v1.5
+  Trying device: mps
+Model loaded in 41.88s on device=mps (fallback=False)
+Encoding completed in 0.34s
+Embedding shape: (15, 768)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/bge_base_en_v1.5.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/bge_base_en_v1.5_retrieval.csv
+
+[OK] BGE-base-en-v1.5 COMPLETE
+  Dimension: 768
+  Encoding time: 0.34s
+  same_cpc_hit_rate_at_3: 0.9333 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+MODEL 5/7: E5-base-v2
+======================================================================
+Model ID: intfloat/e5-base-v2
+  Trying device: mps
+Model loaded in 59.25s on device=mps (fallback=False)
+Encoding completed in 0.49s
+Embedding shape: (15, 768)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/e5_base_v2.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/e5_base_v2_retrieval.csv
+
+[OK] E5-base-v2 COMPLETE
+  Dimension: 768
+  Encoding time: 0.49s
+  same_cpc_hit_rate_at_3: 0.8667 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+MODEL 6/7: all-mpnet-base-v2
+======================================================================
+Model ID: sentence-transformers/all-mpnet-base-v2
+  Trying device: mps
+Model loaded in 77.92s on device=mps (fallback=False)
+Encoding completed in 0.44s
+Embedding shape: (15, 768)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/all_mpnet_base_v2.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/all_mpnet_base_v2_retrieval.csv
+
+[OK] all-mpnet-base-v2 COMPLETE
+  Dimension: 768
+  Encoding time: 0.44s
+  same_cpc_hit_rate_at_3: 0.9333 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+MODEL 7/7: all-MiniLM-L6-v2
+======================================================================
+Model ID: sentence-transformers/all-MiniLM-L6-v2
+  Trying device: mps
+Model loaded in 23.74s on device=mps (fallback=False)
+Encoding completed in 0.51s
+Embedding shape: (15, 384)
+Embeddings saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/embeddings/all_minilm_l6_v2.npy
+Retrieval results saved: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/all_minilm_l6_v2_retrieval.csv
+
+[OK] all-MiniLM-L6-v2 COMPLETE
+  Dimension: 384
+  Encoding time: 0.51s
+  same_cpc_hit_rate_at_3: 0.9333 (chance baseline: 0.6703)
+Model memory released.
+
+======================================================================
+BENCHMARK COMPLETE
+======================================================================
+Successful models: 6/7
+Failed models: 1/7
+
+               model   status  ...  encoding_time_seconds  same_cpc_hit_rate_at_3
+0       PatentSBERTa  SUCCESS  ...                 2.5045                  0.8667
+1            PaECTER  SUCCESS  ...                 1.6566                  1.0000
+2   Nomic-Embed-v1.5   FAILED  ...                    NaN                     NaN
+3   BGE-base-en-v1.5  SUCCESS  ...                 0.3365                  0.9333
+4         E5-base-v2  SUCCESS  ...                 0.4872                  0.8667
+5  all-mpnet-base-v2  SUCCESS  ...                 0.4425                  0.9333
+6   all-MiniLM-L6-v2  SUCCESS  ...                 0.5077                  0.9333
+
+[7 rows x 5 columns]
+
+Chance-level baseline for reference: 0.6703
+
+Main comparison file:
+/Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/model_comparison.csv
+
+Report written: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/benchmark_report.md
+
+All processing finished.
+======================================================================
+PATENT EMBEDDING MODEL BENCHMARK
+======================================================================
+Preferred device: mps
+PyTorch: 2.14.0
+Input file: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/data/hupd_sample/patent_sample_15_stratified.csv
+======================================================================
+Number of patents: 15
+CPC subclasses present: ['G06F', 'H01L', 'H04L']
+Chance-level same-CPC hit@3 baseline for this sample: 0.6703 (a model with no real signal would score roughly this by luck alone)
+Previously completed (SUCCESS) models: BGE-base-en-v1.5, E5-base-v2, PaECTER, PatentSBERTa, all-MiniLM-L6-v2, all-mpnet-base-v2
+Previously FAILED models (will be retried): Nomic-Embed-v1.5
+
+======================================================================
+MODEL 1/7: PatentSBERTa
+======================================================================
+[SKIP] PatentSBERTa already completed successfully.
+
+======================================================================
+MODEL 2/7: PaECTER
+======================================================================
+[SKIP] PaECTER already completed successfully.
+
+======================================================================
+MODEL 3/7: Nomic-Embed-v1.5
+======================================================================
+Model ID: nomic-ai/nomic-embed-text-v1.5
+  Trying device: mps
+  [WARN] Device 'mps' failed for Nomic-Embed-v1.5: 'NomicBertModel' object has no attribute 'get_extended_attention_mask'
+  Retrying Nomic-Embed-v1.5 on next fallback device...
+  Trying device: cpu
+  [WARN] Device 'cpu' failed for Nomic-Embed-v1.5: 'NomicBertModel' object has no attribute 'get_extended_attention_mask'
+
+[FAILED] Nomic-Embed-v1.5
+Error: 'NomicBertModel' object has no attribute 'get_extended_attention_mask'
+Continuing to the next model...
+Model memory released.
+
+======================================================================
+MODEL 4/7: BGE-base-en-v1.5
+======================================================================
+[SKIP] BGE-base-en-v1.5 already completed successfully.
+
+======================================================================
+MODEL 5/7: E5-base-v2
+======================================================================
+[SKIP] E5-base-v2 already completed successfully.
+
+======================================================================
+MODEL 6/7: all-mpnet-base-v2
+======================================================================
+[SKIP] all-mpnet-base-v2 already completed successfully.
+
+======================================================================
+MODEL 7/7: all-MiniLM-L6-v2
+======================================================================
+[SKIP] all-MiniLM-L6-v2 already completed successfully.
+
+======================================================================
+BENCHMARK COMPLETE
+======================================================================
+Successful models: 6/7
+Failed models: 1/7
+
+               model   status  ...  encoding_time_seconds  same_cpc_hit_rate_at_3
+0       PatentSBERTa  SUCCESS  ...                 2.5045                  0.8667
+1            PaECTER  SUCCESS  ...                 1.6566                  1.0000
+2   BGE-base-en-v1.5  SUCCESS  ...                 0.3365                  0.9333
+3         E5-base-v2  SUCCESS  ...                 0.4872                  0.8667
+4  all-mpnet-base-v2  SUCCESS  ...                 0.4425                  0.9333
+5   all-MiniLM-L6-v2  SUCCESS  ...                 0.5077                  0.9333
+6   Nomic-Embed-v1.5   FAILED  ...                    NaN                     NaN
+
+[7 rows x 5 columns]
+
+Chance-level baseline for reference: 0.6703
+
+Main comparison file:
+/Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/model_comparison.csv
+
+Report written: /Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/results/benchmark_report.md
+
+All processing finished.
