@@ -1,0 +1,890 @@
+\documentclass[11pt]{article}
+
+% ---------- Packages ----------
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{listings}
+
+% ---------- Plain black-and-white settings ----------
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0}
+}
+
+% ---------- Remove section numbering (plain text headings only) ----------
+\setcounter{secnumdepth}{-1}
+
+% ---------- Shaded, line-wrapping box for code / directory listings ----------
+\definecolor{boxgray}{gray}{0.93}
+
+\lstset{
+    backgroundcolor=\color{boxgray},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    breakatwhitespace=false,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false,
+    frame=single,
+    framerule=0.3pt,
+    rulecolor=\color{black},
+    xleftmargin=0pt,
+    xrightmargin=0pt
+}
+
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+
+\setlist[itemize]{leftmargin=*}
+\setlist[enumerate]{leftmargin=*}
+
+\title{\textbf{Patent Intelligence Project} \\ \large Research Log and Development Workflow}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =====================================================
+\section{Project Objective}
+% =====================================================
+
+This document is a chronological research log of the \texttt{patent\_intelligence} project. It records what was done, why it was done, what it produced, and what came next --- in the order it actually happened, rather than as an idealized plan written after the fact.
+
+The document is organized into stages, and new stages will be appended as the project progresses:
+
+\begin{enumerate}
+    \item Stage 1 --- Environment Setup
+    \item Stage 2 --- Problem and Dataset Exploration
+    \item Stage 3 --- Understanding HUPD \textit{(partially completed)}
+    \item Stage 4 --- Loading the HUPD Sample \textit{(completed)}
+    \item Stage 5 --- Exploratory Data Analysis \textit{(initial round completed)}
+\end{enumerate}
+
+% =====================================================
+\section{Stage 1 --- Environment Setup}
+% =====================================================
+
+\subsection{Operating System and Shell}
+
+The project is developed on Arch Linux. The terminal prompt shown during development indicates that a Conda \texttt{base} environment is active alongside the project's own virtual environment once the latter is activated:
+
+\begin{lstlisting}
+(base) [patzer_adi@patzeradi ...]$
+\end{lstlisting}
+
+\noindent After activating the project's virtual environment, the prompt becomes:
+
+\begin{lstlisting}
+(venv) (base) [patzer_adi@patzeradi patent_intelligence]$
+\end{lstlisting}
+
+\noindent Both \texttt{(venv)} and \texttt{(base)} appear together because Conda's base environment remains active in the shell; however, the Python interpreter and \texttt{pip} actually used for the project are those from the project's own \texttt{venv}, not from Conda.
+
+\subsection{System Package Setup}
+
+Because the project is developed on Arch Linux, the system Python and pip installation were verified using \texttt{pacman}:
+
+\begin{lstlisting}
+sudo pacman -S python python-pip
+\end{lstlisting}
+
+A package database synchronization / system upgrade was also attempted:
+
+\begin{lstlisting}
+sudo pacman -Syyu
+\end{lstlisting}
+
+\noindent During this operation, a mirror timeout occurred:
+
+\begin{lstlisting}
+error: failed retrieving file 'extra.db' from fastly.mirror.pkgbuild.com :
+Connection timed out after 10003 milliseconds
+\end{lstlisting}
+
+\noindent This is recorded as an environmental/network issue encountered during system setup, not as a failure in the project code. The package manager continued into dependency resolution afterward.
+
+\subsection{Project Creation}
+
+The project began with the creation of a dedicated project directory, followed by a Python virtual environment inside it:
+
+\begin{lstlisting}
+mkdir patent_intelligence
+cd patent_intelligence
+python -m venv venv
+\end{lstlisting}
+
+\noindent The project directory is located at:
+
+\begin{lstlisting}
+/home/patzer_adi/Documents/patent_intelligence/
+\end{lstlisting}
+
+\subsection{Environment Activation and Python Version}
+
+The virtual environment was activated:
+
+\begin{lstlisting}
+source venv/bin/activate
+\end{lstlisting}
+
+\noindent Python and pip versions were verified with:
+
+\begin{lstlisting}
+python --version
+pip --version
+\end{lstlisting}
+
+\begin{lstlisting}
+Python 3.13.12
+pip 26.2.1
+\end{lstlisting}
+
+\noindent The pip installation used is located inside the project's own virtual environment:
+
+\begin{lstlisting}
+/home/patzer_adi/Documents/patent_intelligence/venv/lib/python3.13/site-packages/pip
+\end{lstlisting}
+
+\subsection{Dependency Installation}
+
+Dependencies were installed into the virtual environment. The core dependencies recorded for this stage were:
+
+\begin{lstlisting}
+pip install datasets pandas pyarrow huggingface_hub
+\end{lstlisting}
+
+\noindent The purpose of each package:
+
+\begin{itemize}
+    \item \texttt{datasets} --- loading and processing the HUPD dataset
+    \item \texttt{pandas} --- tabular data analysis and exploratory data analysis
+    \item \texttt{pyarrow} --- Feather-format support and dataset-related data handling
+    \item \texttt{huggingface\_hub} --- interaction with the Hugging Face Hub
+\end{itemize}
+
+\noindent The most important dependency for this stage was the Hugging Face \texttt{datasets} library, since the HUPD dataset is distributed through Hugging Face.
+
+\subsection{Dependency Verification}
+
+The \texttt{datasets} package was verified after installation:
+
+\begin{lstlisting}
+python -c "import datasets; print(datasets.__version__)"
+\end{lstlisting}
+
+\begin{lstlisting}
+3.6.0
+\end{lstlisting}
+
+\noindent A basic import check was also performed:
+
+\begin{lstlisting}
+python -c "from datasets import load_dataset; print('datasets import OK')"
+\end{lstlisting}
+
+\begin{lstlisting}
+datasets import OK
+\end{lstlisting}
+
+\noindent An earlier attempt to verify multiple packages at once used the following command:
+
+\begin{lstlisting}
+python -c "import datasets, pandas, pyarrow, huggingface_hub; print('Everything works!')"
+\end{lstlisting}
+
+\noindent This failed at the shell level, not at the Python level, because Bash interpreted the \texttt{!} character as a history-expansion trigger:
+
+\begin{lstlisting}
+bash: !': event not found
+\end{lstlisting}
+
+\noindent This is recorded as a shell quoting / history-expansion issue rather than a Python package failure.
+
+\subsection{Compatibility Issue Encountered}
+
+The first attempt to load the HUPD dataset failed with the following error:
+
+\begin{lstlisting}
+RuntimeError: Dataset scripts are no longer supported,
+but found hupd.py
+\end{lstlisting}
+
+This occurred because the installed version of the \texttt{datasets} library had dropped support for the dataset-loading script mechanism that HUPD relies on (HUPD's repository uses a loading script, \texttt{hupd.py}).
+
+\subsection{Resolution}
+
+To restore compatibility with the HUPD loading mechanism, the dependency was constrained to versions below 4.0.0:
+
+\begin{lstlisting}
+pip install "datasets<4.0.0"
+\end{lstlisting}
+
+The dependency resolver installed \texttt{datasets==3.6.0} as the highest version satisfying this constraint. This was not a version chosen directly; it was the result the resolver arrived at once the upper-bound constraint was applied. After this change, the HUPD loading code executed successfully.
+
+\subsection{Environment Snapshot}
+
+The following list records the working environment at the end of Stage 1, obtained via \texttt{pip freeze}.
+
+\begin{itemize}
+    \item aiohappyeyeballs --- 2.7.1
+    \item aiohttp --- 3.14.3
+    \item aiosignal --- 1.4.0
+    \item anyio --- 4.14.2
+    \item attrs --- 26.1.0
+    \item certifi --- 2026.7.22
+    \item charset-normalizer --- 3.4.9
+    \item click --- 8.4.2
+    \item datasets --- 3.6.0
+    \item dill --- 0.3.8
+    \item filelock --- 3.32.2
+    \item frozenlist --- 1.8.0
+    \item fsspec --- 2025.3.0
+    \item h11 --- 0.16.0
+    \item hf-xet --- 1.6.0
+    \item httpcore --- 1.0.9
+    \item httpx --- 0.28.1
+    \item huggingface\_hub --- 1.26.0
+    \item idna --- 3.18
+    \item multidict --- 6.7.1
+    \item multiprocess --- 0.70.16
+    \item numpy --- 2.5.1
+    \item packaging --- 26.3
+    \item pandas --- 3.0.5
+    \item propcache --- 0.5.2
+    \item pyarrow --- 25.0.0
+    \item python-dateutil --- 2.9.0.post0
+    \item PyYAML --- 6.0.3
+    \item requests --- 2.34.2
+    \item six --- 1.17.0
+    \item tqdm --- 4.70.0
+    \item typing\_extensions --- 4.16.0
+    \item urllib3 --- 2.7.0
+    \item xxhash --- 3.8.1
+    \item yarl --- 1.24.5
+\end{itemize}
+
+\subsection{Successful Loading Code}
+
+The following code, executed after resolving the compatibility issue, successfully loaded and saved a local copy of the HUPD sample split:
+
+\begin{lstlisting}
+from datasets import load_dataset
+
+dataset_dict = load_dataset(
+    "HUPD/hupd",
+    name="sample",
+    data_files="https://huggingface.co/datasets/HUPD/hupd/blob/main/hupd_metadata_2022-02-22.feather",
+    icpr_label=None,
+    train_filing_start_date="2016-01-01",
+    train_filing_end_date="2016-01-21",
+    val_filing_start_date="2016-01-22",
+    val_filing_end_date="2016-01-31",
+)
+
+# Save the dataset locally
+dataset_dict.save_to_disk("sample_dataset")
+
+print("Dataset saved successfully!")
+print(dataset_dict)
+\end{lstlisting}
+
+\subsection{Version Control and Project Structure}
+
+Once the environment was working and the HUPD sample was loading successfully, the project was pushed to GitHub. The same directory structure used locally is maintained in the remote repository, so that the repository mirrors the working project exactly rather than diverging into a separate ``clean'' layout.
+
+The project root was kept organized as it grew: source code, the local dataset, notebooks, and generated reports are each kept in their own directory rather than sitting loose at the project root. The current project structure is:
+
+\begin{lstlisting}
+patent_intelligence/
+|
+|-- data/
+|   `-- sample_dataset/
+|
+|-- notebooks/
+|   `-- 01_hupd_eda.ipynb
+|
+|-- src/
+|   `-- load_hupd.py
+|
+|-- reports/
+|
+|-- requirements.txt
+|-- README.md
+|-- .gitignore
+|
+`-- venv/
+\end{lstlisting}
+
+\noindent Rationale for each directory:
+
+\begin{itemize}
+    \item \texttt{venv/} --- the project's Python environment.
+    \item \texttt{data/sample\_dataset/} --- the local dataset lives here, since this is where datasets belong rather than at the project root.
+    \item \texttt{src/load\_hupd.py} --- the loading script lives here, since it is project/source code rather than an analysis notebook.
+    \item \texttt{notebooks/} --- numbered analysis notebooks live here, starting with \texttt{01\_hupd\_eda.ipynb}.
+    \item \texttt{reports/} --- reserved for generated reports, figures, and PDFs produced later in the project.
+\end{itemize}
+
+\noindent A \texttt{README.md} was added at the project root, since GitHub renders it directly on the repository page; it gives a short entry-point description of the project, while this document (\texttt{workflow.tex}, and its compiled \texttt{workflow.pdf}) remains the detailed, chronological research log.
+
+\noindent Note that \texttt{venv/}, \texttt{data/}, and \texttt{sample\_dataset/} are excluded from version control (e.g. via \texttt{.gitignore}), since they are either environment-specific or regenerable from code; the directory structure itself, along with the source files, notebooks, and documentation, is what is kept in sync between the local project and GitHub.
+
+\subsection{Stage 1 Summary}
+
+The sequence of events for Stage 1 was as follows:
+
+\begin{enumerate}
+    \item Verify system Python/pip on Arch Linux via \texttt{pacman} (mirror timeout encountered and noted as an environmental issue)
+    \item Create project directory \texttt{patent\_intelligence/}
+    \item Create virtual environment \texttt{venv/}
+    \item Activate the virtual environment
+    \item Confirm Python version (3.13.12) and pip version (26.2.1)
+    \item Install Python dependencies (\texttt{datasets}, \texttt{pandas}, \texttt{pyarrow}, \texttt{huggingface\_hub})
+    \item Verify dependencies via import checks (one check failed at the shell level due to Bash history expansion, not a package issue)
+    \item Attempt to load HUPD $\rightarrow$ compatibility error encountered
+    \item Constrain dependency: \texttt{pip install "datasets<4.0.0"}
+    \item Resolver installs \texttt{datasets==3.6.0}
+    \item Retry HUPD loading $\rightarrow$ succeeds
+    \item Save locally as \texttt{sample\_dataset/}
+    \item Push project to GitHub, maintaining the same directory structure, with a dedicated \texttt{notebooks/} directory added
+\end{enumerate}
+
+\noindent \textit{Next:} understand why HUPD was chosen as the dataset for this project (Stage 2).
+
+% =====================================================
+\section{Stage 2 --- Problem and Dataset Exploration}
+% =====================================================
+
+\subsection{Problem Definition}
+
+The starting problem for this project was not classification or prediction in the usual machine-learning sense (e.g. predicting whether a patent will be granted). It was retrieval: given a new invention described in plain language, find the most semantically similar existing patents, using semantic similarity as a signal for novelty.
+
+The motivation is that keyword-based patent search misses relevant prior art when two patents describe the same invention using different words. For example, a search for ``circular rolling device'' will not match a patent describing a ``wheel-based transportation mechanism'' under keyword search, even though the two describe closely related concepts. A semantic (embedding-based) representation is intended to catch this kind of match where keyword search fails.
+
+It is worth noting that HUPD also supports an acceptance-prediction task, since it includes a grant/reject decision field. This was not the project's target task --- it is treated as an incidental field in a dataset that was chosen for other reasons.
+
+\subsection{How HUPD Was Encountered}
+
+HUPD was encountered while reading literature related to semantic patent retrieval and patent embeddings, specifically:
+
+\begin{itemize}
+    \item Suzgun, Melas-Kyriazi, Sarkar, Kominers, and Shieber (NeurIPS 2023), \textit{The Harvard USPTO Patent Dataset} --- the paper introducing HUPD.
+    \item Jiang et al. (2024), \textit{Can Large Language Models Generate High-Quality Patent Claims?} (arXiv:2406.19465) --- a paper that builds a new claim-generation dataset directly on top of HUPD.
+\end{itemize}
+
+\noindent This led to the underlying resources:
+
+\begin{itemize}
+    \item HUPD on Hugging Face: \url{https://huggingface.co/datasets/HUPD/hupd}
+    \item HUPD GitHub repository: \texttt{suzgunmirac/hupd}
+\end{itemize}
+
+\noindent The GitHub repository was particularly useful because it showed that the dataset had accompanying documentation and an implementation. This suggested a development strategy: rather than immediately attempting to build the full patent-intelligence system, first reproduce the dataset's basic loading workflow, then build iteratively on top of it.
+
+\subsection{Datasets Considered}
+
+Several datasets were encountered during this exploration. The table below distinguishes what was actually learned about each one from what was inferred or is still an open question --- it does not claim that every alternative was fully investigated or ruled out.
+
+\begin{longtable}{|p{2.7cm}|p{6.3cm}|p{3.2cm}|}
+\hline
+\textbf{Dataset} & \textbf{What we learned} & \textbf{Current status} \\
+\hline
+\endhead
+CLEF-IP 2011 & Retrieval-oriented benchmark (556{,}750 patents) built around a fixed query set and relevance judgments, rather than a general-purpose corpus. & Potentially useful for evaluation \\
+\hline
+Raw USPTO Bulk Data & Original source data (unstructured XML across years). Using it would mean building our own acquisition and parsing pipeline before any embedding work could start. & Open question --- discuss with mentor (see Section~\ref{sec:raw-uspto}) \\
+\hline
+PatentMatch & Provides claim/prior-art pairs from European search reports, rather than being a large browsable corpus to search over. & Potential future evaluation resource \\
+\hline
+DAPFAM & A newer (2025) domain-aware, family-level dataset. Encountered during exploration; not yet investigated in depth. & Not selected for initial implementation \\
+\hline
+HUPD & Structured patent applications with rich text fields, accessible via Hugging Face, and accompanied by documentation and a reference implementation. & Selected for initial development (see Section~\ref{sec:hupd-decision}) \\
+\hline
+\end{longtable}
+
+\subsection{Decision: HUPD Selected}
+\label{sec:hupd-decision}
+
+HUPD was not selected because every other dataset considered was proven unsuitable --- several of them (CLEF-IP, PatentMatch) may still be useful later for evaluation, and others (DAPFAM, Raw USPTO) simply were not investigated deeply enough to rule in or out with confidence. HUPD was selected because it gave a practical starting point: a large, clean, pre-structured corpus --- 34 fields per patent application, with full text sections already split into abstract, claims, background, summary, and description --- that could be loaded and used for embedding work immediately, without first building custom parsing or evaluation infrastructure.
+
+This decision applies to the current development phase. It reflects a choice to use HUPD so the semantic retrieval pipeline could be developed iteratively, not a final judgment that HUPD is the permanent or only data source for the project.
+
+\subsection{Open Question: Raw USPTO Data}
+\label{sec:raw-uspto}
+
+Whether the final system should independently acquire and process raw USPTO data, rather than relying on HUPD, has not been decided. This question has not yet been raised with the project mentor and remains open.
+
+A possible future pathway for raw USPTO acquisition, documented here as an unimplemented option, is as follows:
+
+\begin{enumerate}
+    \item Acquire patent/application records
+    \item Parse XML / source formats
+    \item Extract metadata
+    \item Extract text fields:
+    \begin{itemize}
+        \item title
+        \item abstract
+        \item claims
+        \item description
+        \item classifications
+    \end{itemize}
+    \item Normalize schema across years
+    \item Store locally
+    \item Build retrieval corpus
+\end{enumerate}
+
+\noindent \textbf{Status: potential future route --- not implemented.}
+
+\subsection{Stage 2 Summary}
+
+The sequence of events for Stage 2 was as follows:
+
+\begin{enumerate}
+    \item Define the problem: semantic patent retrieval / prior-art discovery
+    \item Read related literature (Suzgun et al.; Jiang et al.)
+    \item Encounter HUPD in the literature
+    \item Investigate HUPD via its paper, its Hugging Face page, and its GitHub repository
+    \item Compare candidate datasets: CLEF-IP 2011, Raw USPTO Bulk Data, PatentMatch, DAPFAM, HUPD
+    \item Select HUPD as the initial development corpus
+    \item Leave raw USPTO acquisition as an open question for the project mentor
+\end{enumerate}
+
+\noindent \textit{Next:} understand the structure of HUPD itself (Stage 3).
+
+% =====================================================
+\section{Stage 3 --- Understanding HUPD}
+% =====================================================
+
+\subsection{Scope of This Stage}
+
+This stage is partially completed. It documents what is currently known about HUPD's structure directly from working with the loaded sample; a fuller treatment of HUPD's origin, construction methodology, and the complete 34-field schema (as described in the source paper) is still to be completed.
+
+\subsection{What the Dataset Contains}
+
+HUPD --- the Harvard USPTO Patent Dataset --- consists of English-language utility patent applications filed with the USPTO. The dataset page is:
+
+\begin{lstlisting}
+https://huggingface.co/datasets/HUPD/hupd
+\end{lstlisting}
+
+\noindent The \texttt{sample} configuration used in this project corresponds to patent applications filed in January 2016, split by filing date into a training portion and a validation portion (see Section~\ref{sec:load-hupd-sample} for the exact date ranges used).
+
+\subsection{Fields Present in the Loaded Sample}
+
+The version of the dataset actually loaded into this project (via \texttt{load\_from\_disk}) exposes the following 14 fields:
+
+\begin{itemize}
+    \item \texttt{patent\_number}
+    \item \texttt{decision}
+    \item \texttt{title}
+    \item \texttt{abstract}
+    \item \texttt{claims}
+    \item \texttt{background}
+    \item \texttt{summary}
+    \item \texttt{description}
+    \item \texttt{cpc\_label}
+    \item \texttt{ipc\_label}
+    \item \texttt{filing\_date}
+    \item \texttt{patent\_issue\_date}
+    \item \texttt{date\_published}
+    \item \texttt{examiner\_id}
+\end{itemize}
+
+\noindent This is the working schema for the project going forward; it is a subset of the full field set described in the original HUPD paper (34 fields), reflecting the specific query used when the sample was requested (Section~\ref{sec:load-hupd-sample-query}).
+
+\subsection{Still To Be Completed}
+
+The following items from the original Stage 3 scope have not yet been documented and remain open:
+
+\begin{itemize}
+    \item The full origin and construction methodology of HUPD, and the identity of its creators, beyond the citation already recorded in Stage 2.
+    \item The complete 34-field schema as described in the source paper (as opposed to the 14 fields present in the loaded sample).
+    \item The precise meaning and provenance of the \texttt{decision} label categories beyond the three values observed in the data (\texttt{PENDING}, \texttt{ACCEPTED}, \texttt{REJECTED} --- see Stage 5).
+    \item The full reasoning, beyond practical convenience, for starting with the January 2016 sample specifically.
+\end{itemize}
+
+% =====================================================
+\section{Stage 4 --- Loading the HUPD Sample}
+% =====================================================
+
+\subsection{Query Used to Build the Local Sample}
+\label{sec:load-hupd-sample-query}
+
+The local sample was produced using the loading call already documented in Stage 1 (Section 2.9), with training filings drawn from 2016-01-01 to 2016-01-21 and validation filings drawn from 2016-01-22 to 2016-01-31.
+
+\subsection{Local Dataset Storage}
+
+After the compatibility issue was resolved, the dataset was saved locally. Following the project's directory layout (Section 2.10), the dataset lives under \texttt{data/sample\_dataset/} and the loading script under \texttt{src/load\_hupd.py}:
+
+\begin{lstlisting}
+patent_intelligence/
+|-- src/load_hupd.py
+|-- data/sample_dataset/
+|-- venv/
+`-- notebooks/
+\end{lstlisting}
+
+\noindent The local dataset directory was inspected directly:
+
+\begin{lstlisting}
+ls -lh data/sample_dataset
+\end{lstlisting}
+
+\begin{lstlisting}
+total 12K
+-rw-r--r-- 1 patzer_adi patzer_adi   35 Aug  5 19:12 dataset_dict.json
+drwxr-xr-x 2 patzer_adi patzer_adi 4.0K Aug  5 19:13 train
+drwxr-xr-x 2 patzer_adi patzer_adi 4.0K Aug  5 19:13 validation
+\end{lstlisting}
+
+\noindent Because the dataset is stored locally, it can be reloaded directly from disk rather than downloading it again from Hugging Face.
+
+\subsection{Loading From Disk}
+\label{sec:load-hupd-sample}
+
+The notebook lives in \texttt{notebooks/} while the dataset lives in \texttt{data/}, so it is loaded with a relative path from the notebook:
+
+\begin{lstlisting}
+from datasets import load_from_disk
+
+dataset = load_from_disk("../data/sample_dataset")
+
+dataset
+\end{lstlisting}
+
+\begin{lstlisting}
+DatasetDict({
+    train: Dataset({
+        features: ['patent_number', 'decision', 'title', 'abstract', 'claims',
+                   'background', 'summary', 'description', 'cpc_label',
+                   'ipc_label', 'filing_date', 'patent_issue_date',
+                   'date_published', 'examiner_id'],
+        num_rows: 16153
+    })
+    validation: Dataset({
+        features: ['patent_number', 'decision', 'title', 'abstract', 'claims',
+                   'background', 'summary', 'description', 'cpc_label',
+                   'ipc_label', 'filing_date', 'patent_issue_date',
+                   'date_published', 'examiner_id'],
+        num_rows: 9094
+    })
+})
+\end{lstlisting}
+
+\subsection{Train/Test Naming Convention}
+
+For this project, the HUPD \texttt{validation} split is treated as the project's \texttt{test} split. This is a project-level naming convention, not a property of HUPD itself:
+
+\begin{lstlisting}
+HUPD train        -> project train
+HUPD validation   -> project test
+\end{lstlisting}
+
+\noindent The conversion is performed with:
+
+\begin{lstlisting}
+train_df = dataset["train"].to_pandas()
+test_df = dataset["validation"].to_pandas()
+\end{lstlisting}
+
+\noindent From this point on, the project consistently refers to these DataFrames as \texttt{train\_df} and \texttt{test\_df}, with the explicit understanding that \texttt{test\_df} corresponds to HUPD's original \texttt{validation} split.
+
+\subsection{Dataset Size}
+
+\begin{lstlisting}
+print("Train shape:", train_df.shape)
+print("Test shape:", test_df.shape)
+\end{lstlisting}
+
+\begin{lstlisting}
+Train shape: (16153, 14)
+Test shape: (9094, 14)
+\end{lstlisting}
+
+\noindent This was independently confirmed with:
+
+\begin{lstlisting}
+print("Training samples:", len(train_df))
+print("Test samples:", len(test_df))
+\end{lstlisting}
+
+\begin{lstlisting}
+Training samples: 16153
+Test samples: 9094
+\end{lstlisting}
+
+\noindent Summary:
+
+\begin{itemize}
+    \item Training set: 16,153 patent applications
+    \item Test set (HUPD \texttt{validation}): 9,094 patent applications
+    \item Total: 25,247 patent applications
+    \item Number of fields: 14
+\end{itemize}
+
+\subsection{Notebook Environment}
+
+The project uses JupyterLab for exploratory analysis:
+
+\begin{lstlisting}
+pip install jupyterlab
+\end{lstlisting}
+
+\noindent Matplotlib was also installed into the virtual environment, required for exploratory visualization.
+
+\noindent The notebook is stored under the project's \texttt{notebooks/} directory and follows a numbered naming convention, beginning with \texttt{01\_hupd\_eda.ipynb}. The notebook begins with:
+
+\begin{lstlisting}
+# HUPD Exploratory Data Analysis
+
+Exploratory analysis of the Harvard USPTO Patent Dataset (HUPD) sample.
+
+The purpose of this notebook is to understand the structure and characteristics
+of the dataset before developing the semantic patent retrieval pipeline.
+\end{lstlisting}
+
+\noindent followed by the initial imports:
+
+\begin{lstlisting}
+from datasets import load_from_disk
+import pandas as pd
+import matplotlib.pyplot as plt
+\end{lstlisting}
+
+\noindent Two informational (non-blocking) messages appeared during this setup:
+
+\begin{lstlisting}
+TqdmWarning: IProgress not found. Please update jupyter and ipywidgets.
+Matplotlib is building the font cache; this may take a moment.
+\end{lstlisting}
+
+\noindent These are environmental/informational messages and did not prevent the notebook from running.
+
+\subsection{Stage 4 Summary}
+
+\begin{enumerate}
+    \item Confirm the HUPD sample was saved locally under \texttt{sample\_dataset/}
+    \item Inspect the local dataset directory (\texttt{dataset\_dict.json}, \texttt{train/}, \texttt{validation/})
+    \item Load the dataset from disk with \texttt{load\_from\_disk}
+    \item Adopt the project's train/test naming convention (HUPD \texttt{validation} $\rightarrow$ project \texttt{test})
+    \item Convert both splits to pandas DataFrames
+    \item Confirm dataset size: 16,153 training rows, 9,094 test rows, 14 columns
+    \item Set up JupyterLab and Matplotlib for the exploratory analysis notebook
+\end{enumerate}
+
+\noindent \textit{Next:} explore the structure and characteristics of the loaded data (Stage 5).
+
+% =====================================================
+\section{Stage 5 --- Exploratory Data Analysis}
+% =====================================================
+
+\subsection{Dataset Dimensions}
+
+\begin{lstlisting}
+print("TRAIN")
+print(f"Rows: {train_df.shape[0]}")
+print(f"Columns: {train_df.shape[1]}")
+
+print("\nTEST")
+print(f"Rows: {test_df.shape[0]}")
+print(f"Columns: {test_df.shape[1]}")
+\end{lstlisting}
+
+\begin{lstlisting}
+TRAIN
+Rows: 16153
+Columns: 14
+
+TEST
+Rows: 9094
+Columns: 14
+\end{lstlisting}
+
+\subsection{Column Types and Missing Values}
+
+\begin{lstlisting}
+pd.DataFrame({
+    "column": train_df.columns,
+    "dtype": train_df.dtypes.astype(str),
+    "missing": train_df.isna().sum().values
+})
+\end{lstlisting}
+
+\noindent All 14 fields in the training split are represented as strings, and the missing-value check reports zero missing values for every field:
+
+\begin{longtable}{|l|l|r|}
+\hline
+\textbf{Column} & \textbf{Dtype} & \textbf{Missing} \\
+\hline
+\endhead
+patent\_number     & str & 0 \\ \hline
+decision           & str & 0 \\ \hline
+title              & str & 0 \\ \hline
+abstract           & str & 0 \\ \hline
+claims             & str & 0 \\ \hline
+background         & str & 0 \\ \hline
+summary            & str & 0 \\ \hline
+description        & str & 0 \\ \hline
+cpc\_label         & str & 0 \\ \hline
+ipc\_label         & str & 0 \\ \hline
+filing\_date       & str & 0 \\ \hline
+patent\_issue\_date & str & 0 \\ \hline
+date\_published    & str & 0 \\ \hline
+examiner\_id       & str & 0 \\ \hline
+\end{longtable}
+
+\noindent This is reported as an observation from the training split specifically, and has not been separately verified for the test split. It should also not be read as claiming that no field ever contains an empty string --- only that pandas' \texttt{isna()} check found no true missing values, since these fields are stored as strings rather than a type where blank/absent values would register as \texttt{NaN}.
+
+\subsection{Descriptive Statistics}
+
+\begin{lstlisting}
+train_df.describe(include="all").T
+\end{lstlisting}
+
+\begin{longtable}{|p{2.6cm}|p{0.9cm}|p{1.1cm}|p{6.2cm}|p{1.2cm}|}
+\hline
+\textbf{Field} & \textbf{Count} & \textbf{Unique} & \textbf{Most frequent value} & \textbf{Freq.} \\
+\hline
+\endhead
+patent\_number & 16153 & 16153 & 13261748 & 1 \\ \hline
+decision & 16153 & 3 & PENDING & 7434 \\ \hline
+title & 16153 & 15286 & SEMICONDUCTOR DEVICE & 35 \\ \hline
+abstract & 16153 & 15919 & A stand-on physiological sensor (e.g. floormat...) & 10 \\ \hline
+claims & 16153 & 16137 & A hybrid oven comprising an oven case; an u... & 3 \\ \hline
+background & 16153 & 14664 & (blank) & 849 \\ \hline
+summary & 16153 & 14129 & (blank) & 1057 \\ \hline
+description & 16153 & 16125 & CROSS REFERENCE TO RELATED APPLICATIONS This a... & 4 \\ \hline
+cpc\_label & 16153 & 10323 & G06F30416 & 29 \\ \hline
+ipc\_label & 16153 & 6698 & H04L2906 & 241 \\ \hline
+filing\_date & 16153 & 20 & 20160115 & 1602 \\ \hline
+patent\_issue\_date & 16153 & 121 & (blank) & 9208 \\ \hline
+date\_published & 16153 & 111 & 20160721 & 1273 \\ \hline
+examiner\_id & 16153 & 5378 & 58717.0 & 55 \\ \hline
+\end{longtable}
+
+\noindent Notes on this table:
+
+\begin{itemize}
+    \item ``(blank)'' denotes an empty-string most-frequent value, not a pandas \texttt{NaN} --- consistent with the zero-missing-values result above.
+    \item The \texttt{patent\_issue\_date} row's most frequent value is blank with a frequency of 9,208, reflecting that a large share of applications in this sample had not yet been issued a patent (consistent with the large \texttt{PENDING} count observed below); no further date-completeness statistic is claimed from this row beyond that.
+\end{itemize}
+
+\subsection{Decision Distribution}
+
+\begin{lstlisting}
+train_df["decision"].value_counts()
+\end{lstlisting}
+
+\begin{lstlisting}
+decision
+PENDING     7434
+ACCEPTED    6945
+REJECTED    1774
+Name: count, dtype: int64
+\end{lstlisting}
+
+\begin{lstlisting}
+train_df["decision"].value_counts(normalize=True).mul(100).round(2)
+\end{lstlisting}
+
+\begin{lstlisting}
+decision
+PENDING     46.02
+ACCEPTED    43.00
+REJECTED    10.98
+Name: proportion, dtype: float64
+\end{lstlisting}
+
+\noindent Summary of the training-split decision distribution:
+
+\begin{itemize}
+    \item PENDING: 7,434 (46.02\%)
+    \item ACCEPTED: 6,945 (43.00\%)
+    \item REJECTED: 1,774 (10.98\%)
+\end{itemize}
+
+\noindent This indicates that the decision labels are not uniformly distributed, with rejected applications representing the smallest class in this sample. No stronger claim about class imbalance handling or downstream modeling implications is made at this stage.
+
+\subsection{Current Findings}
+
+\begin{itemize}
+    \item The loaded sample contains 25,247 patent applications in total (16,153 train, 9,094 test), each with 14 fields.
+    \item All 14 fields are stored as strings, and no field has missing (\texttt{NaN}) values in the training split as checked.
+    \item Several free-text fields (\texttt{background}, \texttt{summary}) are frequently empty strings rather than populated text.
+    \item The \texttt{decision} field has three categories in this sample --- PENDING, ACCEPTED, REJECTED --- and is imbalanced, with REJECTED being the smallest class.
+\end{itemize}
+
+\subsection{Stage 5 Summary / Current Project Status}
+
+At this stage, the following work has been completed:
+
+\begin{enumerate}
+    \item Arch Linux development environment prepared
+    \item Python virtual environment created
+    \item Core Python dependencies installed
+    \item JupyterLab notebook environment prepared
+    \item HUPD dataset identified and investigated
+    \item HUPD loading incompatibility with modern \texttt{datasets} versions encountered and resolved
+    \item HUPD sample dataset successfully obtained
+    \item Dataset saved locally under \texttt{sample\_dataset/}
+    \item Local dataset successfully loaded with \texttt{load\_from\_disk()}
+    \item HUPD \texttt{validation} split mapped to the project's \texttt{test} terminology
+    \item Training and test DataFrames created
+    \item Dataset dimensions, column types, and missing-value status inspected
+    \item Descriptive statistics inspected
+    \item Decision-label distribution analyzed
+\end{enumerate}
+
+\subsection{Next Steps}
+
+The following EDA areas are planned but not yet executed, and no results for them should be assumed until they are carried out and documented:
+
+\begin{itemize}
+    \item Decision distribution visualization
+    \item IPC classification distribution
+    \item CPC classification distribution
+    \item Patent text length statistics (abstract, claims, description)
+    \item Comparison of text characteristics across decision classes
+    \item Duplicate / near-duplicate analysis
+    \item Temporal distribution
+    \item Preparation of text fields for semantic retrieval
+\end{itemize}
+
+% =====================================================
+\section{Appendix: Reproducibility Notes}
+% =====================================================
+
+To reproduce the environment used through Stage 5:
+
+\begin{lstlisting}
+sudo pacman -S python python-pip
+mkdir patent_intelligence
+cd patent_intelligence
+python -m venv venv
+source venv/bin/activate
+pip install "datasets<4.0.0"
+pip install pandas pyarrow huggingface_hub matplotlib jupyterlab
+\end{lstlisting}
+
+\noindent This should result in Python 3.13.12, pip 26.2.1, and \texttt{datasets==3.6.0} being installed, along with the remaining dependencies listed in the Stage 1 environment snapshot (Section 2.9).
+
+\noindent The HUPD sample used throughout contains 25,247 records across the two loaded splits:
+
+\begin{lstlisting}
+train:      16,153
+validation:  9,094   (referred to as "test" in this project)
+\end{lstlisting}
+
+\noindent The local dataset should be loaded from \texttt{sample\_dataset/} using \texttt{load\_from\_disk()} rather than repeatedly re-downloading it from Hugging Face.
+
+\end{document}
