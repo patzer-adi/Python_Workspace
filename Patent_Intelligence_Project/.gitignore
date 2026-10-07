@@ -3,6 +3,7 @@
 data/hupd_sample/sample/
 data/hupd_sample/sample-jan-2016.tar.gz
 
+/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/.Patent_Intelligence_virtual_env_final
 .venv/
 __pycache__/
 *.pyc
