@@ -1,0 +1,32 @@
+{
+  "sentence-transformers/all-MiniLM-L6-v2": {
+    "role": "baseline",
+    "hidden_size": 384,
+    "configured_max_positions": 512
+  },
+  "AI-Growth-Lab/PatentSBERTa": {
+    "role": "patent-domain candidate",
+    "hidden_size": 768,
+    "configured_max_positions": 514
+  },
+  "nomic-ai/nomic-embed-text-v1.5": {
+    "role": "longer-context candidate",
+    "hidden_size": 768,
+    "configured_max_positions": 2048
+  },
+  "BAAI/bge-base-en-v1.5": {
+    "role": "general retrieval candidate",
+    "hidden_size": 768,
+    "configured_max_positions": 512
+  },
+  "intfloat/e5-base-v2": {
+    "role": "general retrieval candidate",
+    "hidden_size": 768,
+    "configured_max_positions": 512
+  },
+  "sentence-transformers/all-mpnet-base-v2": {
+    "role": "general semantic candidate",
+    "hidden_size": 768,
+    "configured_max_positions": 514
+  }
+}

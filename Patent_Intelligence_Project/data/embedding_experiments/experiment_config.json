@@ -1,0 +1,50 @@
+{
+  "baseline": {
+    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+    "embedding_dimension": 384,
+    "collection_name": "patent_sample_2016_chunks"
+  },
+  "candidate_models": [
+    "AI-Growth-Lab/PatentSBERTa",
+    "nomic-ai/nomic-embed-text-v1.5",
+    "BAAI/bge-base-en-v1.5",
+    "intfloat/e5-base-v2",
+    "sentence-transformers/all-mpnet-base-v2"
+  ],
+  "dataset": {
+    "path": "/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/data/sample_dataset",
+    "text_fields": [
+      "title",
+      "abstract",
+      "claims",
+      "background",
+      "summary",
+      "description"
+    ],
+    "train_split": "train",
+    "validation_split": "validation"
+  },
+  "chunking": {
+    "max_characters": 1800,
+    "overlap_characters": 250
+  },
+  "evaluation": {
+    "top_k": [
+      1,
+      5,
+      10
+    ],
+    "query_count": 10,
+    "metrics": [
+      "precision_at_k",
+      "recall_at_k",
+      "ndcg_at_k",
+      "query_latency"
+    ]
+  },
+  "resources": {
+    "device": "cpu",
+    "models_loaded_simultaneously": 1,
+    "batch_size": 2
+  }
+}
