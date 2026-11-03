@@ -2,13 +2,18 @@
 Patent Intelligence - unified Streamlit app.
 
 Views (one session-state key, st.session_state["view"], controls which is shown)
-  Home / Search             query box, model, advanced settings -> 'Analyse patents'
+  Home / Search             query box and number of patents -> 'Analyse patents'
   Research Brief            LLM brief grounded in the retrieved evidence, top patents, next-step buttons
-  Retrieved Patents         compact ranked list, CSV export, technical details
+  Relevant patents to you   compact ranked list, CSV export, technical details
   Patent Details            abstract, scores, supporting chunks, graph link
-  Model Comparison          several models side by side + Reciprocal Rank Fusion
+  Advanced Settings (Tools) embedding model, candidate chunks, reranking (default: Nomic + reranking)
+  Model Comparison          several models side by side + Reciprocal Rank Fusion, timings,
+                            optional relevance metrics for one query, CSV export
   Graph Explorer            saved 2016 patent similarity graph (click a node)
-  Evaluation & Diagnostics  index health, encoder/index dimension check, saved report browser
+  Model Evaluation          ONE button runs every model (+ RRF) and shows a summary, metrics, latency and
+                            downloads. Two modes: automatic CPC-subclass proxy benchmark (no files),
+                            or your own labelled CSV.
+  Diagnostics               index health, encoder/index dimension check, saved report browser
 
 Research brief LLM (default: local Ollama, model llama3.2). Environment variables:
   PATENT_APP_LLM_PROVIDER = ollama | openai (any OpenAI-compatible endpoint)
@@ -38,12 +43,24 @@ Second round of fixes:
   - graph edge weights are called 'edge weights' (not cosine similarity) until verified
   - dimension check validates that a stored embedding was returned
   - show_df / show_plotly pick the width API by Streamlit version instead of catching every error
+
+Third round (evaluation):
+  - 'Evaluation & Diagnostics' split into 'Diagnostics' (health checks, saved reports) and
+    'Model Evaluation' (labelled-query benchmark with P@K, R@K, MRR, nDCG@K, latency, throughput)
+  - Comparison page records embedding / vector-search timings and can compute the same relevance
+    metrics for one query from a pasted list of known relevant patents
+
+Fourth round (one-click evaluation):
+  - Model Evaluation has an automatic mode: samples indexed patents as queries, treats patents in the
+    same CPC subclass as relevant, removes the query patent from every ranking. One button runs all
+    models and shows a summary, charts and downloads. The labelled-CSV flow remains as a second mode.
 """
 
 from __future__ import annotations
 
 import gc
 import json
+import math
 import os
 import re
 import time
@@ -425,6 +442,259 @@ def rrf_fuse(rankings: dict[str, list[str]], k: int = 60) -> dict[str, float]:
 
 
 # ----------------------------------------------------------------------
+# Relevance metrics and model-to-model benchmark
+# ----------------------------------------------------------------------
+EVAL_KS = (1, 3, 5, 10, 20)
+
+
+def parse_relevance_text(text: str) -> dict[str, int]:
+    """One patent per line: 'number' (grade 1) or 'number,grade' (grade 0 = judged not relevant)."""
+    rel: dict[str, int] = {}
+    for n, line in enumerate((text or "").splitlines(), start=1):
+        parts = [p for p in re.split(r"[,;\s]+", line.strip()) if p]
+        if not parts:
+            continue
+        if len(parts) > 2:
+            raise ValueError(f"Line {n}: expected 'patent_number' or 'patent_number,grade'.")
+        try:
+            grade = int(parts[1]) if len(parts) == 2 else 1
+        except ValueError:
+            raise ValueError(f"Line {n}: grade {parts[1]!r} is not an integer.") from None
+        if grade < 0:
+            raise ValueError(f"Line {n}: grade must be >= 0.")
+        if parts[0] in rel and rel[parts[0]] != grade:
+            raise ValueError(f"Line {n}: patent {parts[0]} is given two different grades.")
+        rel[parts[0]] = grade
+    return rel
+
+
+def ranking_metrics(ranked: list[str], rel: dict[str, int], ks) -> dict:
+    """P@K, R@K, nDCG@K and MRR for one ranked patent list.
+
+    rel maps patent_number -> grade (>0 relevant). Patents missing from rel count as not relevant.
+    P@K always divides by K, so a ranking shorter than K is penalised rather than flattered.
+    R@K is relative to the labelled relevant set, not to every relevant patent in the corpus.
+    nDCG uses gain 2^grade - 1 (binary labels reduce to standard binary nDCG).
+    MRR is taken over the supplied list (the retrieval depth).
+    """
+    ranked = list(dict.fromkeys(str(p) for p in ranked))
+    relevant = {p for p, g in rel.items() if g > 0}
+    names = ["MRR"] + [f"{m}@{k}" for k in ks for m in ("P", "R", "nDCG")]
+    if not relevant:
+        return {n: None for n in names}
+    first = next((i for i, p in enumerate(ranked, 1) if p in relevant), None)
+    out = {"MRR": 1.0 / first if first else 0.0}
+    ideal = sorted((g for g in rel.values() if g > 0), reverse=True)
+    for k in ks:
+        top = ranked[:k]
+        hits = sum(p in relevant for p in top)
+        dcg = sum((2 ** rel.get(p, 0) - 1) / math.log2(i + 1) for i, p in enumerate(top, 1))
+        idcg = sum((2 ** g - 1) / math.log2(i + 1) for i, g in enumerate(ideal[:k], 1))
+        out[f"P@{k}"] = hits / k
+        out[f"R@{k}"] = hits / len(relevant)
+        out[f"nDCG@{k}"] = dcg / idcg if idcg else 0.0
+    return out
+
+
+def parse_label_table(df: pd.DataFrame) -> tuple[list[dict], dict[str, dict[str, int]]]:
+    """Labels CSV -> (queries, labels). Columns: query, patent_number, [relevance], [query_id]."""
+    df = df.copy()
+    df.columns = [str(c).strip().lower() for c in df.columns]
+    missing = {"query", "patent_number"} - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required column(s): {', '.join(sorted(missing))}. "
+                         "Expected: query, patent_number, relevance (optional), query_id (optional).")
+    df = df.dropna(subset=["query", "patent_number"])
+    df["query"] = df["query"].astype(str).str.strip()
+    df["patent_number"] = df["patent_number"].astype(str).str.strip()
+    df = df[(df["query"] != "") & (df["patent_number"] != "")]
+    if df.empty:
+        raise ValueError("The label file has no usable rows.")
+    if "relevance" not in df.columns:
+        df["relevance"] = 1
+    df["relevance"] = pd.to_numeric(df["relevance"], errors="raise")
+    if (df["relevance"] < 0).any() or (df["relevance"] % 1 != 0).any():
+        raise ValueError("relevance must be a non-negative integer (0 = not relevant, 1+ = relevant / graded).")
+    df["relevance"] = df["relevance"].astype(int)
+
+    if "query_id" in df.columns:
+        df["query_id"] = df["query_id"].astype(str).str.strip()
+    else:
+        order = {q: f"q{i}" for i, q in enumerate(dict.fromkeys(df["query"]), start=1)}
+        df["query_id"] = df["query"].map(order)
+    if (df.groupby("query_id")["query"].nunique() > 1).any():
+        raise ValueError("A query_id is used with more than one query text.")
+    if (df.groupby(["query_id", "patent_number"])["relevance"].nunique() > 1).any():
+        raise ValueError("The same patent has conflicting relevance grades for one query.")
+
+    queries = [dict(query_id=qid, query=g["query"].iloc[0]) for qid, g in df.groupby("query_id", sort=False)]
+    labels = {qid: dict(zip(g["patent_number"], g["relevance"])) for qid, g in df.groupby("query_id", sort=False)}
+    return queries, labels
+
+
+def run_model_evaluation(model_keys, queries, labels, depth, candidates, rerank, rrf_k, ks, on_progress=None) -> dict:
+    """Run every model on every labelled query; return per-query metrics, timings and rankings.
+
+    Each model gets one untimed warm-up query first, so timings exclude one-time encoder/index warm-up.
+    A model that fails on any query is dropped entirely, so all systems are averaged over the same queries.
+    RRF is added (over the surviving models) when at least two models survive.
+    A query may carry an 'exclude' patent number (automatic benchmark): that patent is removed from every ranking.
+    """
+    ks = [k for k in ks if k <= depth]
+    kmax = max(ks)
+    rows, rank_rows, errors, per_model = [], [], {}, {}
+
+    for i, key in enumerate(model_keys):
+        m_rows, m_rank, m_rankings = [], [], {}
+        try:
+            search_model(key, queries[0]["query"], depth, candidates, rerank)  # warm-up, not recorded
+            for qi, q in enumerate(queries):
+                resp = search_model(key, q["query"], depth, candidates, rerank)
+                excl = q.get("exclude")  # the query patent itself (automatic benchmark)
+                kept = [p for p in resp["patents"] if p["patent_number"] != excl][:depth]
+                ranked = [p["patent_number"] for p in kept]
+                rel, t = labels[q["query_id"]], resp["timings"]
+                m_rankings[q["query_id"]] = ranked
+                m_rows.append(dict(
+                    system=key, query_id=q["query_id"], patents_returned=len(kept),
+                    candidate_chunks=resp["candidates"], embedding_s=t.get("embedding"),
+                    vector_search_s=t.get("vector_search"), reranking_s=t.get("reranking"), total_s=t.get("total"),
+                    unjudged_frac=sum(p not in rel for p in ranked[:kmax]) / kmax,
+                    **ranking_metrics(ranked, rel, ks)))
+                for r, p in enumerate(kept, start=1):
+                    m_rank.append(dict(system=key, query_id=q["query_id"], rank=r, patent_number=p["patent_number"],
+                                       score=p["score"], relevance=rel.get(p["patent_number"], "")))
+                if on_progress:
+                    on_progress((i + (qi + 1) / len(queries)) / len(model_keys))
+        except Exception as exc:
+            errors[key] = f"{type(exc).__name__}: {exc}"
+            continue
+        rows += m_rows
+        rank_rows += m_rank
+        per_model[key] = m_rankings
+        gc.collect()
+
+    if len(per_model) >= 2:
+        lookup = {(r["system"], r["query_id"]): r for r in rows}
+        ok = list(per_model)
+        for q in queries:
+            qid, rel = q["query_id"], labels[q["query_id"]]
+            fused = rrf_fuse({m: per_model[m][qid] for m in ok}, rrf_k)
+            ranked = [pn for pn, _ in sorted(fused.items(), key=lambda kv: (-kv[1], kv[0]))][:depth]
+            comp = [lookup[(m, qid)] for m in ok]
+            rerank_sum = [c["reranking_s"] for c in comp if c["reranking_s"] is not None]
+            rows.append(dict(
+                system="rrf", query_id=qid, patents_returned=len(fused),
+                candidate_chunks=sum(c["candidate_chunks"] for c in comp),
+                embedding_s=sum(c["embedding_s"] or 0 for c in comp),
+                vector_search_s=sum(c["vector_search_s"] or 0 for c in comp),
+                reranking_s=sum(rerank_sum) if rerank_sum else None,
+                total_s=sum(c["total_s"] or 0 for c in comp),   # sum of component latencies (sequential)
+                unjudged_frac=sum(p not in rel for p in ranked[:kmax]) / kmax,
+                **ranking_metrics(ranked, rel, ks)))
+            for r, pn in enumerate(ranked, start=1):
+                rank_rows.append(dict(system="rrf", query_id=qid, rank=r, patent_number=pn,
+                                      score=fused[pn], relevance=rel.get(pn, "")))
+    return dict(rows=rows, rankings=rank_rows, errors=errors, ks=ks,
+                systems=(list(per_model) + (["rrf"] if len(per_model) >= 2 else [])))
+
+
+# ----------------------------------------------------------------------
+# Automatic benchmark (no label file needed)
+# ----------------------------------------------------------------------
+def cpc_subclass(label) -> str:
+    """First CPC subclass found in a label, e.g. 'H04L' (empty string if none)."""
+    m = re.search(r"[A-HY]\d{2}[A-Z]", str(label or "").upper())
+    return m.group(0) if m else ""
+
+
+@st.cache_data(show_spinner="Reading patents from the index...")
+def evaluation_universe() -> tuple[pd.DataFrame, str]:
+    """All indexed patents with title and CPC label, read from the title chunks of one collection."""
+    for key in ("bge", "patentsberta", "mpnet", "minilm"):
+        try:
+            col = get_collection(key)
+            rows = []
+            for section_value in ("title", "Title", "TITLE"):
+                got = col.get(where={"section": section_value}, include=["documents", "metadatas"])
+                for doc, meta in zip(got.get("documents") or [], got.get("metadatas") or []):
+                    meta = meta or {}
+                    pn = str(meta.get("patent_number", "")).strip()
+                    if pn:
+                        rows.append(dict(patent_number=pn, title=(doc or "").strip(),
+                                         cpc_label=str(meta.get("cpc_label", "") or "")))
+                if rows:
+                    break
+            if rows:
+                df = pd.DataFrame(rows).drop_duplicates("patent_number").reset_index(drop=True)
+                df["subclass"] = df["cpc_label"].map(cpc_subclass)
+                return df, key
+        except Exception:
+            continue
+    raise RuntimeError("Could not read patent metadata from any index.")
+
+
+def build_auto_benchmark(n_queries: int, seed: int, query_source: str):
+    """Self-supervised benchmark: query = a patent's abstract/title; relevant = other patents in its CPC subclass.
+
+    Only subclasses with 4-60 indexed patents are used (so recall is meaningful and not diluted).
+    Every indexed patent gets a grade (1 same subclass, 0 otherwise), so nothing is 'unjudged'.
+    """
+    uni, src_key = evaluation_universe()
+    sizes = uni[uni["subclass"] != ""].groupby("subclass")["patent_number"].transform("size")
+    eligible = uni[uni["subclass"] != ""][(sizes >= 4) & (sizes <= 60)]
+    if eligible.empty:
+        raise ValueError("No CPC subclass with 4-60 patents was found, so no automatic benchmark can be built. "
+                         "Use 'Upload my own labels' instead.")
+    pool = eligible.sample(n=min(n_queries * 3, len(eligible)), random_state=int(seed))  # oversample, some lack text
+    members = uni.groupby("subclass")["patent_number"].apply(set).to_dict()
+    all_pns = uni["patent_number"].tolist()
+
+    queries, labels = [], {}
+    for _, row in pool.iterrows():
+        if len(queries) >= n_queries:
+            break
+        text = ""
+        if query_source == "Abstract":
+            try:
+                text = patent_abstract(src_key, row["patent_number"])
+            except Exception:
+                text = ""
+        text = " ".join((text or row["title"]).split())[:400]
+        if not text:
+            continue
+        qid = f"auto_{row['patent_number']}"
+        rel_set = members[row["subclass"]] - {row["patent_number"]}
+        labels[qid] = {pn: (1 if pn in rel_set else 0) for pn in all_pns}
+        queries.append(dict(query_id=qid, query=text, exclude=row["patent_number"]))
+    if not queries:
+        raise ValueError("Could not build any query text from the index.")
+    info = dict(universe=len(uni), eligible=len(eligible), queries=len(queries),
+                avg_relevant=float(np.mean([sum(g > 0 for g in l.values()) for l in labels.values()])))
+    return queries, labels, info
+
+
+def system_label(system: str) -> str:
+    return "RRF fusion" if system == "rrf" else MODELS[system]["label"].split(" (")[0]
+
+
+def latency_table(df: pd.DataFrame) -> pd.DataFrame:
+    out = []
+    for system, g in df.groupby("system", sort=False):
+        row = {"system": system_label(system), "queries": len(g)}
+        for col in ("embedding_s", "vector_search_s", "reranking_s", "total_s"):
+            v = g[col].dropna().astype(float)
+            if len(v):
+                name = col[:-2]
+                row[f"{name}_mean_s"] = v.mean()
+                row[f"{name}_p50_s"] = float(np.percentile(v, 50))
+                row[f"{name}_p95_s"] = float(np.percentile(v, 95))
+        row["throughput_qps"] = len(g) / g["total_s"].sum() if g["total_s"].sum() > 0 else None
+        out.append(row)
+    return pd.DataFrame(out).round(4)
+
+
+# ----------------------------------------------------------------------
 # Abstracts and LLM research brief
 # ----------------------------------------------------------------------
 def _chunk_order(value) -> int:
@@ -586,7 +856,7 @@ def generate_research_brief(query: str, evidence: list[dict]) -> str:
 STATE_DEFAULTS = dict(
     view="Home", search_resp=None, research_brief=None, brief_error=None, active_query="",
     selected_patent=None, show_all_patents=False,
-    settings=dict(model="minilm", top_k=10, candidates=50, rerank=False),
+    settings=dict(model="nomic", top_k=10, candidates=50, rerank=True),
 )
 
 
@@ -719,19 +989,28 @@ def page_home():
                          placeholder="Describe the mechanism, application, or technical problem in your own words...")
     st.caption("Tip: include the input signals, mechanism, algorithm, or desired outcome where possible.")
 
-    c1, c2 = st.columns(2)
-    opts = model_options()
-    key = c1.selectbox("Embedding model", opts, index=opts.index(s["model"]) if s["model"] in opts else 0,
-                       format_func=lambda k: MODELS[k]["label"])
-    top_k = c2.slider("Patent results", 3, 20, s["top_k"])
-    with st.expander("Advanced settings"):
-        candidates = st.slider("Candidate chunks", 10, 200, s["candidates"], step=10)
-        rerank = st.toggle("Cross-encoder reranking", value=s["rerank"])
+    top_k = st.slider("How many patents do you want to retrieve?", 3, 20, s["top_k"])
 
     if st.button("Analyse patents", type="primary", disabled=not query.strip()):
-        run_analysis(key, query, top_k, candidates, rerank)
-    st.caption("Retrieves evidence from the selected model's index, ranks patents, then asks the configured LLM "
+        run_analysis(s["model"], query, top_k, s["candidates"], s["rerank"])
+    st.caption("Retrieves evidence from the patent index, ranks patents, then asks the configured LLM "
                f"({llm_label()}) for an evidence-based research brief.")
+
+
+# ----------------------------------------------------------------------
+# View: Advanced Settings (Tools)
+# ----------------------------------------------------------------------
+def page_settings():
+    s = st.session_state["settings"]
+    st.title("Advanced Settings")
+    st.caption("Retrieval settings used by 'Analyse patents' on the Home page. "
+               "Defaults: Nomic embeddings with cross-encoder reranking.")
+    opts = model_options()
+    s["model"] = st.selectbox("Embedding model", opts, index=opts.index(s["model"]) if s["model"] in opts else 0,
+                              format_func=lambda k: MODELS[k]["label"])
+    s["candidates"] = st.slider("Candidate chunks", 10, 200, s["candidates"], step=10)
+    s["rerank"] = st.toggle("Cross-encoder reranking", value=s["rerank"])
+    st.caption("Changes apply to the next search; the current results are not re-run.")
 
 
 # ----------------------------------------------------------------------
@@ -767,7 +1046,7 @@ def page_brief():
     else:
         if err:
             st.error(f"The research brief could not be generated: {err}")
-            st.caption("Your retrieved patents are still available below and under Retrieved Patents.")
+            st.caption("Your retrieved patents are still available below and under 'Relevant patents to you'.")
         else:
             st.info("No brief has been generated for this search.")
         if st.button("Retry brief" if err else "Generate brief", type="primary"):
@@ -781,20 +1060,23 @@ def page_brief():
 
     st.subheader("Continue your investigation")
     c = st.columns(5)
-    c[0].button("View all patents", on_click=navigate_to, args=("Retrieved Patents",), key="b_all", **WIDTH_KW)
+    c[0].button("View all patents", on_click=navigate_to, args=("Relevant patents to you",), key="b_all", **WIDTH_KW)
     c[1].button("Compare models", on_click=navigate_to, args=("Model Comparison",), key="b_cmp", **WIDTH_KW)
     c[2].button("Open graph", on_click=navigate_to, args=("Graph Explorer",), key="b_graph", **WIDTH_KW)
-    c[3].button("Evaluation", on_click=navigate_to, args=("Evaluation & Diagnostics",), key="b_eval", **WIDTH_KW)
+    c[3].button("Evaluation", on_click=navigate_to, args=("Model Evaluation",), key="b_eval", **WIDTH_KW)
     c[4].button("New search", on_click=new_search, key="b_new", **WIDTH_KW)
 
 
 # ----------------------------------------------------------------------
-# View: Retrieved Patents
+# View: Relevant patents to you
 # ----------------------------------------------------------------------
 def render_patent_list():
     ss = st.session_state
     resp = ss.get("search_resp")
-    st.title("Retrieved Patents")
+    st.title("Relevant patents to you")
+    st.info("These are the patents whose text best matches your description, ranked by similarity. "
+            "Open View details for the abstract and the matching passages, or Explore in graph to see related patents. "
+            "A high rank means similar wording, not that the invention is novel or legally relevant.")
     if not resp:
         st.info("Run a patent search first.")
         st.button("Go to search", on_click=navigate_to, args=("Home",))
@@ -842,19 +1124,19 @@ def render_patent_details():
     resp, pn = ss.get("search_resp"), ss.get("selected_patent")
     if not resp or not pn:
         st.info("Select a patent from the retrieved results.")
-        st.button("Go to retrieved patents", on_click=navigate_to, args=("Retrieved Patents",))
+        st.button("Go to relevant patents", on_click=navigate_to, args=("Relevant patents to you",))
         return
     p = next((x for x in resp["patents"] if x["patent_number"] == pn), None)
     if p is None:
         st.info(f"Patent {pn} is not in the current search results.")
-        st.button("Back to results", on_click=navigate_to, args=("Retrieved Patents",), key="d_back0")
+        st.button("Back to results", on_click=navigate_to, args=("Relevant patents to you",), key="d_back0")
         return
 
     st.header(p["title"] or "Title unavailable")
     st.caption(f"Patent number: {pn} | CPC {p['cpc_label'] or 'n/a'} | IPC {p['ipc_label'] or 'n/a'} "
                f"| published {p['date_published'] or 'n/a'}")
     c = st.columns([1, 1, 1, 3])
-    c[0].button("Back to results", on_click=navigate_to, args=("Retrieved Patents",), key="d_back", **WIDTH_KW)
+    c[0].button("Back to results", on_click=navigate_to, args=("Relevant patents to you",), key="d_back", **WIDTH_KW)
     c[1].button("Back to brief", on_click=navigate_to, args=("Research Brief",), key="d_brief", **WIDTH_KW)
     c[2].button("Explore in graph", on_click=goto_graph, args=(pn,), key="d_graph", **WIDTH_KW)
     st.caption("The graph is the saved 2016 patent graph; a retrieved patent outside that dataset has no node.")
@@ -913,6 +1195,8 @@ def page_compare():
 
     query = st.text_area("Query", height=100, key="cmp_query", value=st.session_state.get("active_query", ""),
                          placeholder="A wireless communication system that adapts transmission parameters to channel conditions.")
+    st.text_area("Known relevant patents (optional, for metrics)", height=90, key="cmp_relevance",
+                 placeholder="One per line: patent_number  or  patent_number,grade   (grade 0 = judged not relevant)")
     if st.button("Run comparison", type="primary", disabled=not (query.strip() and len(keys) >= 2)):
         responses, errors = {}, {}
         bar = st.progress(0.0)
@@ -991,6 +1275,39 @@ def page_compare():
         with st.expander(f"{r['label']}  |  embed {fmt_s(r['timings'].get('embedding'))}, search {fmt_s(r['timings'].get('vector_search'))}"):
             show_df([{"rank": p["rank"], "patent_number": p["patent_number"], "title": p["title"],
                       "score": round(p["score"], 4), "evidence_chunks": p["chunk_count"]} for p in r["patents"][:depth_used]])
+
+    # ---- timings (this run) ----
+    st.subheader("Timings (this run)")
+    timing_rows = [{
+        "system": r["label"].split(" (")[0], "embedding_s": r["timings"].get("embedding"),
+        "vector_search_s": r["timings"].get("vector_search"), "total_s": r["timings"].get("total"),
+        "candidate_chunks": r["candidates"], "patents_returned": len(r["patents"]),
+    } for r in responses.values()]
+    timing_df = pd.DataFrame(timing_rows).round(4)
+    show_df(timing_df)
+    st.caption("One query, no warm-up: the first call per model can include one-time cost. "
+               "Use Model Evaluation for warmed multi-query latency and throughput.")
+
+    # ---- relevance metrics (this query) ----
+    out_df = timing_df
+    try:
+        rel = parse_relevance_text(st.session_state.get("cmp_relevance", ""))
+    except ValueError as exc:
+        st.error(f"Relevance list: {exc}")
+        rel = {}
+    if any(g > 0 for g in rel.values()):
+        k_values = [k for k in EVAL_KS if k <= depth_used]
+        systems = {MODELS[k]["label"].split(" (")[0]: v for k, v in rankings.items()}
+        if len(responses) >= 2:
+            systems["RRF"] = [pn for pn, _ in sorted(fused.items(), key=lambda kv: (-kv[1], kv[0]))][:depth_used]
+        met = pd.DataFrame([dict(system=s, **ranking_metrics(r, rel, k_values)) for s, r in systems.items()]).round(4)
+        st.subheader("Relevance metrics (this query)")
+        show_df(met)
+        st.caption("Unlisted patents count as not relevant; recall is relative to the patents you listed. "
+                   "One query is an anecdote, not an evaluation: use Model Evaluation for several queries.")
+        out_df = timing_df.merge(met, on="system", how="outer")
+    st.download_button("Download comparison (CSV)", out_df.to_csv(index=False).encode("utf-8"),
+                       file_name="model_comparison.csv", mime="text/csv", key="cmp_dl")
 
 
 # ----------------------------------------------------------------------
@@ -1225,10 +1542,12 @@ def page_graph():
 
 
 # ----------------------------------------------------------------------
-# Page 4: Evaluation & diagnostics
+# Page 4: Diagnostics (system health + saved reports)
 # ----------------------------------------------------------------------
-def page_eval():
-    st.title("Evaluation and Diagnostics")
+def page_diagnostics():
+    st.title("Diagnostics")
+    st.caption("Index health, encoder/index compatibility, resource paths and a browser for saved reports. "
+               "Model-versus-model metrics are on the Model Evaluation page.")
 
     st.header("1. System health")
     st.subheader("Index health")
@@ -1285,8 +1604,7 @@ def page_eval():
     ])
     st.write(f"Titles resolvable from the index: **{len(title_map()):,}** patents")
 
-    st.header("2. Retrieval evaluation")
-    st.subheader("Saved reports")
+    st.header("2. Saved reports")
     st.warning("Reports based on CPC subclass co-membership are a weak proxy for relevance, not verified prior-art accuracy. "
                "Check each report's relevance signal before quoting its numbers.")
     files = sorted([p for p in RESULTS_DIR.rglob("*") if p.suffix in (".csv", ".json") and p.stat().st_size < 50_000_000]) if RESULTS_DIR.is_dir() else []
@@ -1312,19 +1630,184 @@ def page_eval():
 
 
 # ----------------------------------------------------------------------
+# Page 5: Model Evaluation (one-click automatic benchmark, or uploaded labels)
+# ----------------------------------------------------------------------
+def render_evaluation_results(run: dict, stale: bool):
+    res = run["result"]
+    if stale:
+        st.warning("Settings changed since this run. Press 'Run full evaluation' to refresh.")
+    for key, msg in res["errors"].items():
+        st.error(f"{MODELS[key]['label']} was dropped (failed on at least one query): {msg}")
+    if not res["rows"]:
+        st.error("No model completed the evaluation.")
+        return
+    df = pd.DataFrame(res["rows"])
+    rks = res["ks"]
+    short = df[df["patents_returned"] < min(max(rks), run["depth"])]
+    if len(short):
+        st.warning(f"{len(short)} (system, query) pair(s) returned fewer unique patents than the largest K. "
+                   "Recall is capped there; raise 'Candidate chunks per model'.")
+
+    metric_cols = ["MRR"] + [f"{m}@{k}" for k in rks for m in ("P", "R", "nDCG")]
+    summary = df.groupby("system", sort=False).agg(
+        queries=("query_id", "nunique"), **{c: (c, "mean") for c in metric_cols}, unjudged_frac=("unjudged_frac", "mean")
+    ).reset_index()
+    summary.insert(0, "model", summary.pop("system").map(system_label))
+    summary = summary.round(4)
+    lat = latency_table(df)
+
+    # ---- headline summary ----
+    kref = 10 if 10 in rks else max(rks)
+    st.subheader("Summary")
+    st.caption(f"{summary['queries'].max()} queries | {len(summary)} systems | mode: {run['mode']}")
+    c = st.columns(4)
+    for col, metric in zip(c, ["MRR", f"nDCG@{kref}", f"P@{kref}", f"R@{kref}"]):
+        best = summary.loc[summary[metric].idxmax()]
+        col.metric(f"Best {metric}", best["model"], f"{best[metric]:.3f}", delta_color="off")
+    fastest = lat.loc[lat["total_mean_s"].idxmin()]
+    st.info(f"Fastest system: **{fastest['system']}** ({fastest['total_mean_s']:.2f}s per query on average). "
+            f"Highest nDCG@{kref}: **{summary.loc[summary[f'nDCG@{kref}'].idxmax(), 'model']}**.")
+    chart = summary.set_index("model")[[f"nDCG@{kref}", f"P@{kref}", f"R@{kref}", "MRR"]]
+    st.bar_chart(chart)
+
+    st.subheader("Relevance metrics (mean over queries)")
+    show_df(summary)
+    st.caption("P@K divides by K; R@K is relative to the relevant set; nDCG uses gain 2^grade - 1; "
+               "MRR is over the chosen retrieval depth.")
+    st.subheader("Latency and throughput")
+    show_df(lat)
+    st.caption("Warmed, single-query, sequential timings. Compare models on the same machine only. "
+               "RRF latency is the sum of its component models.")
+    with st.expander("Per-query results"):
+        per_q = df.copy()
+        per_q["system"] = per_q["system"].map(system_label)
+        show_df(per_q.round(4))
+
+    st.subheader("Downloads")
+    full_report = summary.merge(lat.rename(columns={"system": "model"}), on="model", how="left", suffixes=("", "_lat"))
+    d = st.columns(5)
+    d[0].download_button("Full report (CSV)", full_report.to_csv(index=False).encode("utf-8"),
+                         file_name="eval_full_report.csv", mime="text/csv", key="dl_full")
+    d[1].download_button("Relevance summary (CSV)", summary.to_csv(index=False).encode("utf-8"),
+                         file_name="eval_summary.csv", mime="text/csv", key="dl_sum")
+    d[2].download_button("Latency summary (CSV)", lat.to_csv(index=False).encode("utf-8"),
+                         file_name="eval_latency.csv", mime="text/csv", key="dl_lat")
+    d[3].download_button("Per-query metrics (CSV)", df.to_csv(index=False).encode("utf-8"),
+                         file_name="eval_per_query.csv", mime="text/csv", key="dl_pq")
+    d[4].download_button("Ranked lists (CSV)", pd.DataFrame(res["rankings"]).to_csv(index=False).encode("utf-8"),
+                         file_name="eval_rankings.csv", mime="text/csv", key="dl_rk")
+
+
+def page_evaluation():
+    st.title("Model Evaluation")
+    st.caption("Press one button to run every model on a set of queries and get Precision@K, Recall@K, MRR, nDCG@K, "
+               "latency and throughput, plus Reciprocal Rank Fusion. Summary and downloads appear when it finishes.")
+
+    mode = st.radio("Relevance labels", ["Automatic benchmark (no files needed)", "Upload my own labels"],
+                    horizontal=True, key="eval_mode")
+    auto = mode.startswith("Automatic")
+
+    queries, labels, auto_params = [], {}, None
+    if auto:
+        with st.expander("How the automatic benchmark works (read before quoting numbers)", expanded=True):
+            st.markdown(
+                "- **Queries:** randomly sampled indexed patents; the query text is that patent's abstract (or title).\n"
+                "- **Relevant patents:** the other indexed patents in the same **CPC subclass** (e.g. H04L). "
+                "Only subclasses with 4-60 patents are used.\n"
+                "- **Self-match removed:** the query patent is excluded from every ranking.\n"
+                "- **Weak proxy:** same CPC subclass is not verified prior-art relevance. Use these numbers to "
+                "**compare models with each other**, not as absolute accuracy. For real accuracy, upload expert labels.\n"
+                "- **Latency:** one untimed warm-up query per model, then sequential timed queries on `" + DEVICE + "`.")
+        c1, c2, c3 = st.columns(3)
+        n_q = c1.slider("Number of queries", 10, 100, 30, step=5, key="eval_nq")
+        qsrc = c2.selectbox("Query text", ["Abstract", "Title"], key="eval_qsrc")
+        seed = int(c3.number_input("Random seed", 0, 9999, 42, key="eval_seed"))
+        auto_params = (n_q, seed, qsrc)
+    else:
+        template = pd.DataFrame([
+            dict(query_id="q1", query="wireless system that adapts transmission to channel conditions", patent_number="0000001", relevance=2),
+            dict(query_id="q1", query="wireless system that adapts transmission to channel conditions", patent_number="0000002", relevance=1),
+            dict(query_id="q1", query="wireless system that adapts transmission to channel conditions", patent_number="0000003", relevance=0),
+        ])
+        st.download_button("Download label template (CSV)", template.to_csv(index=False).encode("utf-8"),
+                           file_name="relevance_labels_template.csv", mime="text/csv")
+        st.caption("Columns: query, patent_number, relevance (optional, default 1), query_id (optional).")
+        upload = st.file_uploader("Relevance labels (CSV)", type="csv", key="eval_labels_file")
+        if upload is None:
+            st.info("Upload a label file to run an evaluation.")
+            return
+        try:
+            all_q, labels = parse_label_table(pd.read_csv(upload, dtype=str))
+        except Exception as exc:
+            st.error(f"Could not read the label file: {type(exc).__name__}: {exc}")
+            return
+        queries = [q for q in all_q if any(g > 0 for g in labels[q["query_id"]].values())]
+        if len(queries) < len(all_q):
+            st.warning(f"{len(all_q) - len(queries)} query(ies) have no relevant patent and are skipped.")
+        if not queries:
+            st.error("No query has a relevant patent, so no metric can be computed.")
+            return
+        st.caption(f"{len(queries)} usable queries.")
+
+    with st.expander("Settings (defaults run everything)"):
+        c1, c2 = st.columns(2)
+        keys = c1.multiselect("Models", [k for k in MODELS if k != "legacy"],
+                              default=[k for k in MODELS if k != "legacy"],
+                              format_func=lambda k: MODELS[k]["label"], key="eval_models")
+        ks_sel = c2.multiselect("K values", list(EVAL_KS), default=[1, 3, 5, 10], key="eval_ks")
+        c3, c4, c5, c6 = st.columns(4)
+        depth = c3.slider("Patents per ranking (depth)", 5, 50, 20, key="eval_depth")
+        candidates = c4.slider("Candidate chunks per model", 50, 300, 150, step=10, key="eval_cands")
+        rerank = c5.toggle("Cross-encoder reranking", value=False, key="eval_rerank")
+        rrf_k = int(c6.number_input("RRF constant k", 1, 200, 60, key="eval_rrfk"))
+    ks = sorted(k for k in ks_sel if k <= depth)
+    if ks_sel and not ks:
+        st.warning("Every selected K is larger than the depth. Increase the depth or pick smaller K values.")
+
+    label_sig = auto_params if auto else json.dumps(labels, sort_keys=True)
+    sig = (mode, label_sig, tuple(sorted(keys)), depth, candidates, rerank, rrf_k, tuple(ks))
+    nq = auto_params[0] if auto else len(queries)
+    st.caption(f"This will run {len(keys)} models x {nq} queries (plus one warm-up each). "
+               "On CPU, large models such as Nomic can take a while.")
+
+    if st.button("Run full evaluation", type="primary", disabled=not (keys and ks)):
+        try:
+            if auto:
+                with st.spinner("Building the benchmark from the index..."):
+                    queries, labels, info = build_auto_benchmark(*auto_params)
+                st.caption(f"Benchmark: {info['queries']} queries from {info['eligible']:,} eligible patents "
+                           f"(universe {info['universe']:,}); average {info['avg_relevant']:.1f} relevant patents per query.")
+        except Exception as exc:
+            st.error(f"Could not build the benchmark: {type(exc).__name__}: {exc}")
+            return
+        bar = st.progress(0.0, text="Running evaluation...")
+        result = run_model_evaluation(keys, queries, labels, depth, candidates, rerank, rrf_k, ks,
+                                      on_progress=lambda f: bar.progress(min(f, 1.0), text="Running evaluation..."))
+        bar.empty()
+        st.session_state["eval_run"] = dict(sig=sig, result=result, queries=queries, depth=depth,
+                                            mode="automatic (CPC-subclass proxy)" if auto else "uploaded labels")
+
+    run = st.session_state.get("eval_run")
+    if run:
+        render_evaluation_results(run, stale=(run["sig"] != sig))
+
+
+# ----------------------------------------------------------------------
 # Navigation
 # ----------------------------------------------------------------------
 VIEW_PAGES = {
     "Home": page_home,
     "Research Brief": page_brief,
-    "Retrieved Patents": render_patent_list,
+    "Relevant patents to you": render_patent_list,
     "Patent Details": render_patent_details,
+    "Advanced Settings": page_settings,
     "Model Comparison": page_compare,
     "Graph Explorer": page_graph,
-    "Evaluation & Diagnostics": page_eval,
+    "Model Evaluation": page_evaluation,
+    "Diagnostics": page_diagnostics,
 }
-RESEARCH_VIEWS = ["Home", "Research Brief", "Retrieved Patents"]
-TOOL_VIEWS = ["Model Comparison", "Graph Explorer", "Evaluation & Diagnostics"]
+RESEARCH_VIEWS = ["Home", "Research Brief", "Relevant patents to you", "Graph Explorer"]
+TOOL_VIEWS = ["Advanced Settings", "Model Comparison", "Model Evaluation", "Diagnostics"]
 
 initialise_state()
 if st.session_state["view"] not in VIEW_PAGES:
@@ -1332,11 +1815,18 @@ if st.session_state["view"] not in VIEW_PAGES:
 view = st.session_state["view"]
 
 st.sidebar.title("Patent Intelligence")
-for group, names in (("Research", RESEARCH_VIEWS), ("Tools", TOOL_VIEWS)):
-    st.sidebar.caption(group)
-    for name in names:
-        active = view == name or (view == "Patent Details" and name == "Retrieved Patents")
-        st.sidebar.button(name, key=f"nav_{name}", on_click=navigate_to, args=(name,),
-                          type="primary" if active else "secondary", **WIDTH_KW)
+
+
+def nav_button(container, name):
+    active = view == name or (view == "Patent Details" and name == "Relevant patents to you")
+    container.button(name, key=f"nav_{name}", on_click=navigate_to, args=(name,),
+                     type="primary" if active else "secondary", **WIDTH_KW)
+
+
+for name in RESEARCH_VIEWS:
+    nav_button(st.sidebar, name)
+with st.sidebar.expander("Tools", expanded=view in TOOL_VIEWS):
+    for name in TOOL_VIEWS:
+        nav_button(st, name)
 st.sidebar.divider()
 VIEW_PAGES[view]()
