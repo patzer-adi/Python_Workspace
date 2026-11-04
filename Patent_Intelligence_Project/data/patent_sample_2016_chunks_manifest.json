@@ -1,0 +1,30 @@
+{
+  "dataset_dir": "/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/data/sample_dataset",
+  "chroma_db_dir": "/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/data/chroma_db",
+  "collection": "patent_sample_2016_chunks",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_dimension": 384,
+  "chunk_size_characters": 1800,
+  "chunk_overlap_characters": 250,
+  "split_stats": {
+    "train": {
+      "records_considered": 10,
+      "records_with_text": 10,
+      "records_without_text": 0,
+      "chunks_upserted": 348,
+      "errors": 0
+    },
+    "validation": {
+      "records_considered": 10,
+      "records_with_text": 10,
+      "records_without_text": 0,
+      "chunks_upserted": 350,
+      "errors": 0
+    }
+  },
+  "errors": [],
+  "collection_count_after_split": 698,
+  "collection_count_final": 698,
+  "elapsed_seconds": 499.34,
+  "completed_at_unix": 1791792360.2810225
+}

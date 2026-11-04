@@ -1,0 +1,22 @@
+{
+  "AI-Growth-Lab/PatentSBERTa": {
+    "query_prefix": "",
+    "document_prefix": ""
+  },
+  "nomic-ai/nomic-embed-text-v1.5": {
+    "query_prefix": "search_query: ",
+    "document_prefix": "search_document: "
+  },
+  "BAAI/bge-base-en-v1.5": {
+    "query_prefix": "",
+    "document_prefix": ""
+  },
+  "intfloat/e5-base-v2": {
+    "query_prefix": "query: ",
+    "document_prefix": "passage: "
+  },
+  "sentence-transformers/all-mpnet-base-v2": {
+    "query_prefix": "",
+    "document_prefix": ""
+  }
+}

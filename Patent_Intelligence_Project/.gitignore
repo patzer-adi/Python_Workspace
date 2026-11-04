@@ -8,3 +8,17 @@ data/hupd_sample/sample-jan-2016.tar.gz
 __pycache__/
 *.pyc
 
+
+# Generated patent datasets and graph databases
+/data/chroma_patent_graph_2016/
+/data/patent_graph_2016/
+/data/patent_subset_runs/
+
+# Generated experiment results and logs
+/results/chunk_config_check/
+/results/full_corpus_benchmark_smoke3000/
+/results/patent_subset_runs/
+/logs/
+
+# Jupyter temporary files
+/notebooks/.ipynb_checkpoints/
