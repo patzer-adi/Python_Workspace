@@ -1,0 +1,11 @@
+# Streamlit Community Cloud. CPU-only PyTorch keeps the install small.
+--extra-index-url https://download.pytorch.org/whl/cpu
+streamlit>=1.40
+chromadb
+sentence-transformers
+torch
+# Pin chromadb / sentence-transformers to the versions in your local venv
+# (run `pip freeze | grep -i -E "chromadb|sentence|torch"`) so the index opens identically.
+plotly>=5.20
+numpy
+scikit-learn

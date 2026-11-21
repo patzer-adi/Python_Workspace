@@ -1,3 +1,6 @@
+.streamlit/secrets.toml
+.streamlit/
+
 .DS_Store
 
 data/hupd_sample/sample/
@@ -22,3 +25,24 @@ __pycache__/
 
 # Jupyter temporary files
 /notebooks/.ipynb_checkpoints/
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.Patent_Intelligence_virtual_env_final/
+.venv/
+
+# Local databases and generated graph index
+data/graph_index/
+data/chroma*/
+*.sqlite
+*.sqlite3
+*.db
+
+# Backups
+*.backup*
+*_backup.py
+
+# Python cache
+__pycache__/
+*.py[cod]
