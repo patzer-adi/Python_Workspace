@@ -1,0 +1,42 @@
+Traceback (most recent call last):
+  File "/Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/run_all_models.py", line 298, in <module>
+    model, embeddings, load_time, encode_time, device_used, fell_back = load_and_encode(
+                                                                        ^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/run_all_models.py", line 270, in load_and_encode
+    raise last_error
+  File "/Users/adityagowari/Programs/Python-Workspace/Patent_Intelligence_Project/run_all_models.py", line 251, in load_and_encode
+    embeddings = model.encode(
+                 ^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/sentence_transformers/util/decorators.py", line 46, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/sentence_transformers/sentence_transformer/model.py", line 941, in encode
+    out_features = self(features, **kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/sentence_transformers/base/model.py", line 569, in forward
+    input = module(input, **module_kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/sentence_transformers/base/modules/transformer.py", line 1650, in forward
+    model_output = model_method(**filtered_kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/.cache/huggingface/modules/transformers_modules/nomic_hyphen_ai/nomic_hyphen_bert_hyphen_2048/7710840340a098cfb869c4f65e87cf2b1b70caca/modeling_hf_nomic_bert.py", line 1914, in forward
+    attention_mask = self.get_extended_attention_mask(attention_mask, hidden_states.shape[:-1])
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adityagowari/Programs/Python-Workspace/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1972, in __getattr__
+    raise AttributeError(
+AttributeError: 'NomicBertModel' object has no attribute 'get_extended_attention_mask'
