@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "model_key": "minilm",
+  "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+  "config": {
+    "key": "minilm",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "max_seq_length": 256,
+    "target_tokens": 220,
+    "overlap_tokens": 25,
+    "document_prefix": ""
+  },
+  "status": "running",
+  "started_at": "2026-10-22T12:16:38.392250+00:00",
+  "source_rows_expected": 100,
+  "patents_processed": 10,
+  "chunks_written": 641,
+  "vectors_inserted": 641,
+  "last_completed_split": "train",
+  "last_completed_row": 9,
+  "updated_at": "2026-10-22T12:18:27.873149+00:00"
+}

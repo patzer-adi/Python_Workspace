@@ -1,0 +1,8 @@
+model,collection,database_exists,collection_exists,count,distance_metric,status
+patentsberta,patent_chunks_patentsberta,True,True,28166,cosine,OK
+paecter,patent_chunks_paecter,True,True,26548,cosine,OK
+nomic,patent_chunks_nomic,True,True,5293,cosine,OK
+bge,patent_chunks_bge,True,True,28166,cosine,OK
+e5,patent_chunks_e5,True,True,28302,cosine,OK
+mpnet,patent_chunks_mpnet,True,True,37195,cosine,OK
+minilm,patent_chunks_minilm,True,True,57279,cosine,OK
