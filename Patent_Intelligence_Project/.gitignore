@@ -1,48 +1,34 @@
-.streamlit/secrets.toml
-.streamlit/
-
+# macOS
 .DS_Store
 
-data/hupd_sample/sample/
-data/hupd_sample/sample-jan-2016.tar.gz
-
-/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/.Patent_Intelligence_virtual_env_final
-.venv/
-__pycache__/
-*.pyc
-
-
-# Generated patent datasets and graph databases
-/data/chroma_patent_graph_2016/
-/data/patent_graph_2016/
-/data/patent_subset_runs/
-
-# Generated experiment results and logs
-/results/chunk_config_check/
-/results/full_corpus_benchmark_smoke3000/
-/results/patent_subset_runs/
-/logs/
-
-# Jupyter temporary files
-/notebooks/.ipynb_checkpoints/
-# Local environments and secrets
+# Secrets and environment files
 .env
 .env.*
 !.env.example
-.Patent_Intelligence_virtual_env_final/
+.streamlit/
 .venv/
+.Patent_Intelligence_virtual_env_final/
 
-# Local databases and generated graph index
-data/graph_index/
-data/chroma*/
+# Python
+__pycache__/
+*.py[cod]
+
+# Generated datasets and research artifacts
+data/
+logs/
+results/
+notebooks/data/
+notebooks/.ipynb_checkpoints/
+.patent-intelligence/
+
+# Local databases
 *.sqlite
 *.sqlite3
 *.db
 
 # Backups
-*.backup*
+*.backup
+*.backup_*
+*.backup.*
 *_backup.py
-
-# Python cache
-__pycache__/
-*.py[cod]
+streamlit_app_backup.py

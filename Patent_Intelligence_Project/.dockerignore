@@ -8,12 +8,16 @@ __pycache__/
 *.pyc
 *.backup*
 *_backup.py
+
 notebooks/
 trials/
 results/
 logs/
 reports/
+
 data/patent_subset_runs/
 data/sample_dataset/
 data/hupd_sample/
 data/embedding_experiments/
+data/chroma_db/
+data/graph_index/

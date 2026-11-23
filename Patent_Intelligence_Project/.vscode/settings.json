@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^python - <<'PY'\nfrom pathlib import Path\nimport chromadb\nroot = Path\\('/home/patzer_adi/Documents/python/Python_Workspace/Patent_Intelligence_Project/data/chroma_db'\\)\nclient = chromadb\\.PersistentClient\\(path=str\\(root\\)\\)\nprint\\('collections:', \\[c\\.name for c in client\\.list_collections\\(\\)\\]\\)\nfor c in client\\.list_collections\\(\\):\n    col = client\\.get_collection\\(c\\.name\\)\n    print\\('name', c\\.name, 'count', col\\.count\\(\\)\\)\n    sample = col\\.get\\(limit=1, include=\\['metadatas','documents'\\]\\)\n    print\\('sample metadata', sample\\['metadatas'\\]\\[0\\]\\[0\\] if sample\\['metadatas'\\] else None\\)\n    print\\('sample doc prefix', \\(sample\\['documents'\\]\\[0\\]\\[0\\]\\[:200\\] if sample\\['documents'\\] else None\\)\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
