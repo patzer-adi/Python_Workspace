@@ -1,4 +1,4 @@
-#Patent Intelligence: Semantic Search, Retrieval & RAG
+Patent Intelligence: Semantic Search, Retrieval & RAG
 
 An end-to-end patent intelligence pipeline that combines transformer-based embeddings, domain-specific fine-tuning, vector search, and Retrieval-Augmented Generation (RAG) to make patent discovery and analysis more effective.
 
@@ -84,27 +84,27 @@ Fine-tuned BGE Models
 
 Three BGE-based models were fine-tuned using patent data and weak supervision derived from CPC classifications.
 
-The models explore different training objectives:
+The models explore different training objectives.
 
 1. BGE Patent MNRL
 
 Fine-tuned using Multiple Negatives Ranking Loss (MNRL).
 
-View model on Hugging Face
+Hugging Face: patzer-adi/bge-patent-mnrl
 
 2. BGE Similarity Contrastive
 
 Fine-tuned using a similarity-based contrastive learning approach.
 
-View model on Hugging Face
+Hugging Face: patzer-adi/bge-patent-similarity-contrastive
 
 3. BGE Hybrid Contrastive
 
 Fine-tuned using a hybrid contrastive training approach.
 
-View model on Hugging Face
+Hugging Face: patzer-adi/bge-patent-hybrid-contrastive
 
-Loading the fine-tuned models
+Loading the Fine-tuned Models
 
 The models are publicly hosted on Hugging Face. Their weights are maintained separately from this GitHub repository to avoid committing large binary files.
 
@@ -130,11 +130,8 @@ print(embeddings.shape)
 
 To use the other models, replace the model identifier with:
 
-"patzer-adi/bge-patent-similarity-contrastive"
-
-or
-
-"patzer-adi/bge-patent-hybrid-contrastive"
+* patzer-adi/bge-patent-similarity-contrastive
+* patzer-adi/bge-patent-hybrid-contrastive
 
 Retrieval and Vector Search
 
@@ -169,7 +166,7 @@ Text representation	Title + Abstract
 Successful models	9
 Failed models	1
 
-Preliminary results
+Preliminary Results
 
 Results below are from the 1,500-patent smoke test, not a completed full-corpus evaluation.
 
@@ -186,7 +183,7 @@ BGE Hybrid Contrastive	0.7853	0.2451	0.2743	0.4982	0.3554
 
 The BGE Patent MNRL model achieved the strongest results across the reported metrics in this preliminary benchmark.
 
-Evaluation methodology and limitations
+Evaluation Methodology and Limitations
 
 * CPC subclass overlap is used as a weak relevance proxy.
 * Queries are drawn from the same patent corpus.
@@ -316,20 +313,17 @@ Future Improvements
 * Improve RAG response evaluation and factual grounding.
 * Strengthen deployment and application testing.
 
-Author
+Authors
 
 Aditya Gowari
-
 Saily Kadam
 
 M.Sc. Scientific Computing
 Savitribai Phule Pune University
 
-GitHub: patzer-adi
-
-Github: saily-kadam
-
-Hugging Face: patzer-adi
+* GitHub: patzer-adi
+* GitHub: saily-kadam
+* Hugging Face: patzer-adi
 
 ⸻
 
