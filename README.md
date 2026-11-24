@@ -1,4 +1,4 @@
-Patent Intelligence: Semantic Search, Retrieval & RAG
+#Patent Intelligence: Semantic Search, Retrieval & RAG
 
 An end-to-end patent intelligence pipeline that combines transformer-based embeddings, domain-specific fine-tuning, vector search, and Retrieval-Augmented Generation (RAG) to make patent discovery and analysis more effective.
 
@@ -319,12 +319,14 @@ Future Improvements
 Author
 
 Aditya Gowari
+
 Saily Kadam
 
 M.Sc. Scientific Computing
 Savitribai Phule Pune University
 
 GitHub: patzer-adi
+
 Github: saily-kadam
 
 Hugging Face: patzer-adi
