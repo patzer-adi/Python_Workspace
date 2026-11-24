@@ -6,3 +6,30 @@
 /Patent_Intelligence_Project/data/rag_corpus_1000.csv
 /Patent_Intelligence_Project/.vscode/
 /Patent_Intelligence_Project/Patent_Intelligence_virtual_env_final/
+
+
+# Patent Intelligence Project - environments
+/Patent_Intelligence_Project/.venv_finetune/
+/Patent_Intelligence_Project/.venv/
+/Patent_Intelligence_Project/.patent-intelligence/
+
+# Fine-tuned model weights - publish on Hugging Face
+/Patent_Intelligence_Project/models/fine_tuned_bge/
+
+# Generated experiment artifacts
+/Patent_Intelligence_Project/experiments/finetuning/data/
+/Patent_Intelligence_Project/results/full_corpus_benchmark_v2_smoke1500/embeddings/
+/Patent_Intelligence_Project/results/full_corpus_benchmark_v2_smoke1500/state/
+
+# Local databases and generated indexes
+/Patent_Intelligence_Project/data/patent_subset_runs/
+/Patent_Intelligence_Project/data/patent_embeddings_smoke/
+/Patent_Intelligence_Project/results/patent_subset_runs/
+/Patent_Intelligence_Project/results/patent_pipeline_smoke/
+
+# Jupyter temporary files
+**/.ipynb_checkpoints/
+
+# Python generated files
+**/__pycache__/
+*.py[cod]
