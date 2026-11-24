@@ -1,397 +1,334 @@
-# Patent Intelligence Pipeline
-A semantic patent search and analysis system that helps researchers and innovators discover patents related to a technical idea, investigate existing approaches, and compare relevant inventions using embedding models and large language models (LLMs).
-
-The project explores how modern NLP, dense vector retrieval, reranking, and LLM-based analysis can be combined to build a practical patent intelligence system.
-
-## 1. Project Objective
-The goal is to develop a system that accepts a natural-language description of an invention or technical problem and retrieves patents with semantically related content.
-
-Rather than relying exclusively on exact keyword matches, the system represents patent documents and user queries as dense numerical embeddings, allowing retrieval based on semantic similarity.
-
-The system aims to:
-
-- Retrieve patents relevant to a proposed technical idea.
-- Identify related technical approaches and supporting patent passages.
-- Compare retrieval quality across different embedding models.
-- Improve candidate rankings using cross-encoder reranking.
-- Combine rankings from multiple embedding models using Reciprocal Rank Fusion.
-- Generate evidence-grounded research briefs using an LLM.
-- Support further investigation through patent details, metadata, and similarity graphs.
-**Important:** This is a patent discovery and research-support tool, not a legal novelty assessment or patentability determination.
-
-## 2. End-to-End Pipeline
-The project consists of two main stages: offline patent indexing and online query processing.
-
-### A. Offline Patent Indexing
-The offline pipeline converts patent documents into searchable vector representations.
-
-```
-Patent Dataset (HUPD / 2016 collection)
-                 |
-                 v
-        Data Ingestion
-                 |
-                 v
-      Record Validation
-                 |
-                 v
-     Text Cleaning and Processing
-                 |
-                 v
-       Patent Field Extraction
-                 |
-                 v
-       Patent Text Preparation
-                 |
-                 v
-          Text Chunking
-                 |
-                 v
-       Embedding Model
-                 |
-                 v
-        Vector Generation
-                 |
-                 v
-          ChromaDB
-```
-Each patent retains its identifying information and associated metadata.
-
-The text representation uses relevant patent content, including titles, abstracts, claims, and descriptions, depending on the indexing experiment.
-
-Patent chunks are associated with metadata such as:
-
-- Patent number
-- Title
-- Section
-- Chunk index
-- CPC and IPC classifications, where available
-- Publication date
-- Patent decision information
-The resulting embeddings and metadata are stored in persistent ChromaDB collections.
-
-### B. Online Query Processing
-When a user submits an invention description, the application processes it through the retrieval pipeline.
-
-```
-       User's Technical Idea
-                 |
-                 v
-         Query Processing
-                 |
-                 v
-       Selected Embedding Model
-                 |
-                 v
-            Query Vector
-                 |
-                 v
-       ChromaDB Vector Search
-                 |
-                 v
-       Candidate Patent Chunks
-                 |
-                 v
-       Optional Cross-Encoder
-             Reranking
-                 |
-                 v
-        Patent-Level Grouping
-                 |
-                 v
-       Ranked Patent Results
-                 |
-                 v
-       LLM-Based Research Brief
-                 |
-                 v
-          User Interface
-```
-The same embedding model used to index a collection is used to encode its search queries.
+Patent Intelligence: Semantic Search, Retrieval & RAG
 
-The application retrieves candidate chunks, groups them by patent, ranks the resulting patents, and presents supporting passages for inspection.
+An end-to-end patent intelligence pipeline that combines transformer-based embeddings, domain-specific fine-tuning, vector search, and Retrieval-Augmented Generation (RAG) to make patent discovery and analysis more effective.
 
-## 3. Embedding Models
-A major experimental component of this project is comparing pretrained embedding models for patent retrieval.
+The project explores how semantic representation learning can improve patent retrieval beyond traditional keyword-based search.
 
-The application supports seven embedding models:
+Project Overview
 
-Model | Model identifier
+Patent documents contain technical information expressed through specialised terminology, lengthy descriptions, claims, and abstracts. Finding relevant patents using keyword matching alone can be challenging.
 
-MiniLM | `sentence-transformers/all-MiniLM-L6-v2`
+This project develops a pipeline to:
 
-MPNet | `sentence-transformers/all-mpnet-base-v2`
+* Process and analyse patent datasets.
+* Generate semantic embeddings using multiple pretrained models.
+* Fine-tune BGE models using weak CPC-based supervision.
+* Compare embedding models through retrieval benchmarks.
+* Perform semantic retrieval using FAISS and ChromaDB.
+* Explore RAG-based patent analysis and summarisation.
+* Provide an interactive interface through Streamlit.
+* Experiment with locally hosted and API-based language models.
 
-BGE | `BAAI/bge-base-en-v1.5`
+Architecture
 
-E5 | `intfloat/e5-base-v2`
+Patent Dataset
+      |
+      v
+Data Processing & Cleaning
+      |
+      v
+Patent Text Preparation
+(Title + Abstract + Description)
+      |
+      v
+Embedding Generation
+      |
+      +-----------------------+
+      |                       |
+      v                       v
+Pretrained Models       Fine-tuned BGE Models
+      |                       |
+      +-----------+-----------+
+                  |
+                  v
+          Vector Retrieval
+          (FAISS / ChromaDB)
+                  |
+                  v
+          Retrieved Patents
+                  |
+                  v
+          RAG / LLM Analysis
+                  |
+                  v
+          Streamlit Interface
 
-PatentSBERTa | `AI-Growth-Lab/PatentSBERTa`
+Dataset
 
-PaECTER | `mpi-inno-comp/paecter`
+The project uses the Harvard USPTO Patent Dataset (HUPD).
 
-Nomic | `nomic-ai/nomic-embed-text-v1.5`
-These models provide different approaches to representing technical language in vector space.
+Dataset processing included:
 
-The project investigates their performance on patent retrieval rather than assuming that a general-purpose embedding model will necessarily perform best on patent documents.
+* Processing 26,808 patent JSON records.
+* Creating a structured CSV dataset.
+* Extracting patent titles, abstracts, descriptions, and CPC classifications.
+* Analysing CPC subclass distributions.
+* Preparing patent text for embedding generation and retrieval experiments.
 
-Each model uses its corresponding vector collection.
+Some experiments use smaller subsets to reduce computational requirements.
 
-## 4. Retrieval and Ranking
+Embedding Models
 
-### Dense Vector Retrieval
-The user's query is converted into a vector representation and compared against indexed patent chunks using vector similarity search.
+Multiple pretrained embedding models were evaluated to understand their effectiveness for patent semantic retrieval.
 
-ChromaDB retrieves the nearest candidate chunks from the selected collection.
+Model	Description
+PatentSBERTa	Patent-domain sentence embeddings
+PaECTER	Patent similarity and retrieval
+BGE-base-en-v1.5	General-purpose embedding model
+E5-base-v2	General-purpose text embeddings
+all-mpnet-base-v2	Sentence-level semantic embeddings
+all-MiniLM-L6-v2	Lightweight sentence embeddings
+Nomic Embed v1.5	General-purpose embedding model
 
-### Patent-Level Grouping
-Since a patent may contain multiple relevant chunks, retrieved chunks are grouped by their patent number.
+Fine-tuned BGE Models
 
-The application calculates a patent-level ranking score using:
+Three BGE-based models were fine-tuned using patent data and weak supervision derived from CPC classifications.
 
-`Patent Score = 0.5 × Best Chunk Score + 0.5 × Mean of Top 3 Chunk Scores`
+The models explore different training objectives:
 
-This is a ranking heuristic designed to combine the strongest matching passage with evidence from other relevant passages.
+1. BGE Patent MNRL
 
-It is not a calibrated probability of relevance.
+Fine-tuned using Multiple Negatives Ranking Loss (MNRL).
 
-### Cross-Encoder Reranking
-The application optionally applies a cross-encoder to the retrieved query–document pairs.
+View model on Hugging Face
 
-Unlike bi-encoder retrieval, which compares independently generated vectors, a cross-encoder evaluates the query and candidate passage together.
+2. BGE Similarity Contrastive
 
-The reranker used is:
+Fine-tuned using a similarity-based contrastive learning approach.
 
-`cross-encoder/ms-marco-MiniLM-L-6-v2`
+View model on Hugging Face
 
-This provides a second-stage ranking mechanism for the initially retrieved candidates.
+3. BGE Hybrid Contrastive
 
-### Reciprocal Rank Fusion (RRF)
-The project also implements multi-model comparison using Reciprocal Rank Fusion.
+Fine-tuned using a hybrid contrastive training approach.
 
-Different embedding models independently retrieve and rank patents. Their rankings are then combined using RRF.
+View model on Hugging Face
 
-The fusion score is calculated as:
+Loading the fine-tuned models
 
-`RRF(d) = Σ 1 / (k + rank(d))`
+The models are publicly hosted on Hugging Face. Their weights are maintained separately from this GitHub repository to avoid committing large binary files.
 
-where `rank(d)` is the rank of a patent in an individual model's results and `k` is the RRF constant.
+Install the required library:
 
-This allows patents appearing consistently near the top across different models to receive stronger combined rankings.
+pip install sentence-transformers
 
-The application also provides model-wise comparisons and top-list overlap analysis.
+Load a model:
 
-## 5. LLM-Based Research Brief Generation
-After retrieving relevant patents, the application can generate a research brief grounded in the retrieved patent evidence.
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer(
+    "patzer-adi/bge-patent-mnrl"
+)
+texts = [
+    "A method for efficient neural network computation",
+    "A system for semiconductor device fabrication"
+]
+embeddings = model.encode(
+    texts,
+    normalize_embeddings=True
+)
+print(embeddings.shape)
 
-The LLM receives the user's technical idea and selected retrieved patent information.
+To use the other models, replace the model identifier with:
 
-The generated brief is intended to help investigate:
+"patzer-adi/bge-patent-similarity-contrastive"
 
-- Common technical aspects
-- Differences between the proposed idea and existing patents
-- Distinctive technical approaches
-- Potential areas of overlap
-- Patent status and relevant evidence
-- Further directions for investigation
-The application supports a local Ollama-based LLM provider by default, with support for OpenAI-compatible endpoints.
+or
 
-The default configuration uses `llama3.2`.
+"patzer-adi/bge-patent-hybrid-contrastive"
 
-LLM-generated conclusions must be checked against the original patent claims and supporting passages. They do not establish legal novelty or infringement.
+Retrieval and Vector Search
 
-## 6. Application Features
-The Streamlit application provides the following functionality:
+The project explores semantic retrieval using vector databases and similarity search.
 
-- **Patent Search:** Search patents using natural-language descriptions of technical ideas.
-- **Research Brief:** Generate an LLM-based research brief grounded in retrieved evidence.
-- **Relevant Patents:** Explore ranked patent results and export results as CSV.
-- **Patent Details:** Inspect abstracts, metadata, similarity scores, and supporting chunks.
-- **Advanced Settings:** Select embedding models, configure candidate retrieval depth, and enable or disable reranking.
-- **Model Comparison:** Compare multiple embedding models on the same query.
-- **Reciprocal Rank Fusion:** Combine patent rankings across models.
-- **Graph Explorer:** Explore the saved 2016 patent similarity graph.
-- **Evaluation and Diagnostics:** Inspect index health, embedding dimensions, retrieval evaluation, and saved reports.
+FAISS
 
-## 7. Dataset and Vector Database
-The project uses patent data associated with the HUPD / 2016 patent collection.
+* Vector indexing and similarity search.
+* Efficient retrieval of nearest patent embeddings.
 
-The indexing experiments produce separate ChromaDB collections for the embedding models, allowing retrieval experiments to be performed independently.
+ChromaDB
 
-The legacy MiniLM collection contains 67,303 indexed chunks in the local project database. This is a chunk count, not a patent count.
+* Persistent vector storage.
+* Document and metadata management.
+* Semantic retrieval.
 
-ChromaDB is used for persistent vector storage and nearest-neighbour retrieval.
+The retrieval pipeline uses patent embeddings to identify semantically similar documents.
 
-**Note:** The indexed database is stored separately from the GitHub source repository because of its size. A fresh clone therefore requires the corresponding indexed data to be supplied or generated before the full application can run.
+Additional retrieval experiments include reranking and Reciprocal Rank Fusion (RRF).
 
-## 8. Technology Stack
+Benchmarking
 
-Area | Technologies
+A full-corpus benchmarking pipeline was developed to compare pretrained and fine-tuned embedding models.
 
-Programming language | Python
+The initial benchmark smoke test used:
 
-Application | Streamlit
+Parameter	Value
+Source patent records	25,247
+Patents benchmarked	1,500
+Maximum sequence length	256
+Text representation	Title + Abstract
+Successful models	9
+Failed models	1
 
-NLP and embeddings | Sentence Transformers
+Preliminary results
 
-Embedding models | MiniLM, MPNet, BGE, E5, PatentSBERTa, PaECTER, Nomic
+Results below are from the 1,500-patent smoke test, not a completed full-corpus evaluation.
 
-Vector database | ChromaDB
+Model	Hit@20	Precision@20	Recall@20	MRR@20	nDCG@20
+PatentSBERTa	0.7520	0.1799	0.2066	0.4563	0.2789
+PaECTER	0.7993	0.2212	0.2679	0.5074	0.3430
+BGE-base-en-v1.5	0.7680	0.1943	0.2216	0.4642	0.2971
+E5-base-v2	0.7727	0.1993	0.2349	0.4791	0.3062
+all-mpnet-base-v2	0.7873	0.2112	0.2497	0.4881	0.3274
+all-MiniLM-L6-v2	0.7600	0.1986	0.2219	0.4605	0.2978
+BGE Patent MNRL	0.8287	0.2711	0.3323	0.5554	0.4171
+BGE Similarity Contrastive	0.7740	0.2443	0.2764	0.5001	0.3621
+BGE Hybrid Contrastive	0.7853	0.2451	0.2743	0.4982	0.3554
 
-Reranking | Cross-Encoder
+The BGE Patent MNRL model achieved the strongest results across the reported metrics in this preliminary benchmark.
 
-Retrieval fusion | Reciprocal Rank Fusion
+Evaluation methodology and limitations
 
-LLM inference | Ollama, OpenAI-compatible APIs
+* CPC subclass overlap is used as a weak relevance proxy.
+* Queries are drawn from the same patent corpus.
+* Self-matches are excluded.
+* The benchmark does not use human-annotated relevance judgements.
+* The results are not a held-out test evaluation.
+* One model, Nomic Embed v1.5, failed because of a Transformers compatibility issue.
 
-Data processing | NumPy, Pandas
+These results should therefore be interpreted as preliminary retrieval comparisons rather than definitive evidence of real-world patent relevance.
 
-Visualization | Plotly
+RAG and Language Model Integration
 
-Patent data | HUPD / 2016 patent collection
+The project explores Retrieval-Augmented Generation for patent analysis.
 
-## 9. Repository Structure
+The intended workflow is:
 
-```
+1. Accept a patent-related query.
+2. Retrieve semantically relevant patents.
+3. Supply retrieved patent information as context.
+4. Use a language model to generate a contextual response.
+
+Language model integrations explored include:
+
+* Google Gemini API.
+* Ollama for local model inference.
+
+The project also explores generating structured patent briefs from retrieved information.
+
+Interactive Application
+
+A Streamlit interface provides an interactive layer for exploring the patent intelligence pipeline.
+
+The application connects the retrieval and language-model components to support patent discovery and analysis.
+
+Technology Stack
+
+Category	Technologies
+Programming	Python
+Data processing	Pandas, NumPy
+Machine learning	PyTorch, Transformers
+Embeddings	Sentence Transformers
+Fine-tuning	BGE, contrastive learning, MNRL
+Vector search	FAISS, ChromaDB
+Language models	Gemini API, Ollama
+Interface	Streamlit
+Deployment experiments	Docker, Microsoft Azure
+Model hosting	Hugging Face
+Version control	Git, GitHub
+
+Repository Structure
+
 Patent_Intelligence_Project/
 │
-├── streamlit_app.py
-│
-├── src/
-│   ├── rag_search.py
-│   └── ...
-│
 ├── data/
-│   ├── chroma_db/
-│   ├── patent_subset_runs/
-│   └── patent_graph_2016/
+│
+├── experiments/
+│   └── finetuning/
+│       └── scripts/
+│           ├── prepare_pairs.py
+│           └── train_bge.py
+│
+├── models/
 │
 ├── notebooks/
 │
-├── pages/
-│
-├── reports/
-│
 ├── results/
 │
-├── trials/
-│   └── results/
+├── src/
+│   └── run_full_corpus_benchmark_v2.py
 │
-├── system_images/
-│
+├── app.py
 ├── requirements.txt
-├── requirements-demo.txt
-├── requirements-deploy.txt
-├── .gitignore
-└── README.md
-```
-The repository contains the application, research experiments, supporting source code, evaluation outputs, and data-processing resources. Large datasets, local environments, and persistent vector databases are maintained separately from the source-controlled code.
+├── Dockerfile
+├── README.md
+└── .gitignore
 
-## 10. Installation and Execution
+Generated datasets, local environments, experiment outputs, and large model weights are excluded from the GitHub repository where appropriate.
 
-### Prerequisites
+Installation
 
-- Python 3.12 or a compatible supported Python version
-- Git
-- Access to the project's indexed ChromaDB collections
-- Sufficient memory and storage for the selected embedding models
+Clone the repository:
 
-### Clone the Repository
+git clone https://github.com/patzer-adi/Python_Workspace.git
 
-```
-git clone <YOUR_REPOSITORY_URL>
-cd Patent_Intelligence_Project
-```
+Navigate to the project:
 
-### Create a Virtual Environment
+cd Python_Workspace/Patent_Intelligence_Project
 
-```
-python3.12 -m venv .patent-intelligence
-source .patent-intelligence/bin/activate
-```
+Create a virtual environment:
 
-### Install Dependencies
+python -m venv .venv
 
-```
-python -m pip install --upgrade pip
-python -m pip install -r requirements-demo.txt
-```
+Activate it:
 
-### Configure the Data
-Place the required indexed ChromaDB collections and graph data in their expected project directories.
+macOS / Linux
 
-The application expects model-specific collections under:
+source .venv/bin/activate
 
-```
-data/patent_subset_runs/<RUN_ID>/chroma/
-```
-The original MiniLM collection is maintained separately under:
+Install dependencies:
 
-```
-data/chroma_db/
-```
+pip install -r requirements.txt
 
-### Run the Application
+Configure API credentials in a local .env file when using external language-model APIs. Never commit API keys or secrets.
 
-```
-streamlit run streamlit_app.py
-```
-Open the local Streamlit URL displayed in the terminal.
+Benchmark Execution
 
-## 11. Configuration
-The application supports configuration through environment variables.
+The benchmark script supports limited runs for testing and larger runs for more extensive evaluation.
 
-Variable | Purpose
+Example smoke test:
 
-`PATENT_APP_RUN_ID` | Selects the indexed patent collection run
+python src/run_full_corpus_benchmark_v2.py \
+    --limit 1500 \
+    --expected-rows 25247 \
+    --output results/full_corpus_benchmark_v2_smoke1500
 
-`PATENT_APP_DEVICE` | Selects the inference device
+Refer to the script’s command-line arguments for additional configuration.
 
-`PATENT_APP_LLM_PROVIDER` | Selects `ollama` or `openai`
+Future Improvements
 
-`PATENT_APP_LLM_MODEL` | Specifies the LLM model
+* Complete full-corpus benchmarking.
+* Improve evaluation using held-out query sets.
+* Introduce human-annotated relevance judgements.
+* Explore stronger hard-negative mining strategies.
+* Evaluate hybrid lexical and semantic retrieval.
+* Improve reranking and retrieval evaluation.
+* Expand patent-domain fine-tuning experiments.
+* Improve RAG response evaluation and factual grounding.
+* Strengthen deployment and application testing.
 
-`PATENT_APP_OLLAMA_URL` | Configures the Ollama endpoint
+Author
 
-`PATENT_APP_LLM_BASE_URL` | Configures an OpenAI-compatible endpoint
+Aditya Gowari
+Saily Kadam
 
-`PATENT_APP_LLM_API_KEY` | API key for a configured remote LLM provider
-Keep API keys and credentials outside source control. Do not commit `.env`, Streamlit secrets, or other private configuration files.
+M.Sc. Scientific Computing
+Savitribai Phule Pune University
 
-## 12. Experiments and Evaluation
-The project includes experiments investigating:
+GitHub: patzer-adi
+Github: saily-kadam
 
-- Differences in semantic retrieval across embedding models.
-- Patent retrieval using different text representations.
-- Candidate retrieval depth.
-- Cross-encoder reranking.
-- Multi-model ranking and Reciprocal Rank Fusion.
-- Retrieval performance and result overlap.
-- Computational requirements of different embedding models.
-Evaluation outputs and experiment results are maintained in the `trials/`, `results/`, and `reports/` directories.
+Hugging Face: patzer-adi
 
-Quantitative performance claims should be reported only alongside the corresponding evaluation setup, dataset, and retrieval metrics.
+⸻
 
-## 13. Limitations
-
-- Retrieval quality depends on the coverage and quality of the indexed patent corpus.
-- Semantic similarity does not establish technical equivalence.
-- Similarity scores are ranking signals, not probabilities of patent overlap.
-- Cross-encoder scores are not calibrated probabilities.
-- LLM-generated research briefs may contain errors and require verification against original patent documents.
-- The system does not replace professional patent searches or legal advice.
-- Running several embedding models and rerankers can require substantial memory and computational resources.
-
-## 14. Future Improvements
-
-- Expand the indexed patent corpus and improve data coverage.
-- Investigate hybrid retrieval combining keyword and dense vector search.
-- Improve patent-specific chunking and document representation.
-- Evaluate retrieval using labelled relevance judgements and standard ranking metrics.
-- Investigate more effective query expansion and structured query representations.
-- Improve LLM grounding, evidence attribution, and comparison quality.
-- Explore more efficient indexing and inference strategies for larger patent collections.
-
----
-
-**Project focus:** Applying NLP, representation learning, vector databases, information retrieval, and LLMs to make technical patent discovery more accessible and useful.
+This project is an ongoing exploration of semantic search, domain-specific representation learning, and retrieval-augmented language models for patent intelligence.
